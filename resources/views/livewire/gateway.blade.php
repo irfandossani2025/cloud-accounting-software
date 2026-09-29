@@ -7,34 +7,51 @@
             <ul class="space-y-1 text-sm">
                 <li><a href="{{ route('groups.index') }}" wire:navigate data-shortcut="Alt+G" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Groups</span><span class="kbd">Alt+G</span></a></li>
                 <li><a href="{{ route('ledgers.index') }}" wire:navigate data-shortcut="Alt+L" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Ledgers</span><span class="kbd">Alt+L</span></a></li>
+                @can('manage-masters')
                 <li><a href="{{ route('ledgers.create') }}" wire:navigate data-shortcut="Alt+C" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Create ledger</span><span class="kbd">Alt+C</span></a></li>
+                @endcan
             </ul>
 
             <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Inventory masters</h2>
             <ul class="space-y-1 text-sm">
                 <li><a href="{{ route('stock-items.index') }}" wire:navigate data-shortcut="Alt+I" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Stock items</span><span class="kbd">Alt+I</span></a></li>
+                @can('manage-masters')
                 <li><a href="{{ route('inventory.masters', 'stock-groups') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Stock groups</a></li>
                 <li><a href="{{ route('inventory.masters', 'units') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Units of measure</a></li>
                 <li><a href="{{ route('inventory.masters', 'godowns') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Godowns</a></li>
+                @endcan
             </ul>
 
             <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Banking &amp; control</h2>
             <ul class="space-y-1 text-sm">
+                @can('reconcile')
                 <li><a href="{{ route('reports.bank-reconciliation') }}" wire:navigate data-shortcut="Alt+K" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Bank reconciliation</span><span class="kbd">Alt+K</span></a></li>
+                @endcan
                 <li><a href="{{ route('reports.post-dated') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Post-dated cheques</a></li>
+                @can('manage-masters')
                 <li><a href="{{ route('inventory.masters', 'cost-centres') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Cost centres</a></li>
                 <li><a href="{{ route('budgets.index') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Budgets</a></li>
                 <li><a href="{{ route('currencies.index') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Currencies &amp; rates</a></li>
+                @endcan
             </ul>
 
             <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Utilities</h2>
             <ul class="space-y-1 text-sm">
-                <li><a href="{{ route('company.edit') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Company &amp; VAT details</a></li>
+                @can('admin')
+                    <li><a href="{{ route('company.edit') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Company &amp; VAT details</a></li>
+                    <li><a href="{{ route('users.index') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Users &amp; roles</a></li>
+                    <li><a href="{{ route('audit.index') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Audit trail</a></li>
+                    <li><a href="{{ route('year-end') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Year-end, period lock &amp; backup</a></li>
+                @endcan
+                <li><a href="{{ route('password.edit') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Change my password</a></li>
             </ul>
         </section>
 
         <section class="card p-4">
             <h2 class="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Vouchers</h2>
+            @cannot('enter-vouchers')
+                <p class="text-sm text-slate-400">Your role can view reports only.</p>
+            @else
             <ul class="space-y-1 text-sm">
                 @foreach ($voucherTypes as $type)
                     <li>
@@ -47,6 +64,7 @@
                     </li>
                 @endforeach
             </ul>
+            @endcannot
         </section>
 
         <section class="card p-4">

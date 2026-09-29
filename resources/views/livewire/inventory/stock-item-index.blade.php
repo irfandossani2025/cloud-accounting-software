@@ -1,7 +1,9 @@
 @php use App\Support\Money; use App\Services\StockService; @endphp
 <div>
     <x-page-header title="Stock Items" :back="route('gateway')">
+        @can('manage-masters')
         <a href="{{ route('stock-items.create') }}" wire:navigate data-shortcut="Alt+C" class="btn-primary">Create <span class="kbd">Alt+C</span></a>
+        @endcan
     </x-page-header>
 
     <div class="no-print mb-3 flex flex-wrap gap-2">
@@ -29,7 +31,7 @@
                         <td class="num {{ $p->qty < 0 ? 'text-red-700' : '' }}">{{ StockService::qty($p->qty) }} {{ $p->item->unit->symbol }}</td>
                         <td class="num">{{ Money::format($p->rate, true) }}</td>
                         <td class="num">{{ Money::format($p->value, true) }}</td>
-                        <td class="no-print text-right"><a href="{{ route('stock-items.edit', $p->item) }}" wire:navigate class="text-xs text-brand-700 hover:underline">Alter</a></td>
+                        <td class="no-print text-right">@can('manage-masters')<a href="{{ route('stock-items.edit', $p->item) }}" wire:navigate class="text-xs text-brand-700 hover:underline">Alter</a>@endcan</td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="py-6 text-center text-slate-400">No stock items yet.</td></tr>

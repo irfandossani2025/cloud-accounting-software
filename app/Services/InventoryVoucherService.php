@@ -8,7 +8,9 @@ use App\Models\Godown;
 use App\Models\StockItem;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Support\Audit;
 use App\Support\Money;
+use App\Support\PeriodLock;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -113,6 +115,16 @@ class InventoryVoucherService
 
     private function header(VoucherType $type, array $data, ?Voucher $voucher, ?int $userId): Voucher
     {
+        PeriodLock::assertOpen($data['date'], $voucher?->date);
+        $before = $voucher ? Audit::voucherSnapshot($voucher->fresh()) : null;
+
+        DB::afterCommit(function () use (&$voucher, $before) {
+            $fresh = $voucher->fresh();
+            Audit::log($before ? 'altered' : 'created', 'Voucher', $fresh->id,
+                "{$fresh->type->name} {$fresh->number} ".($before ? 'altered' : 'created'),
+                $before, Audit::voucherSnapshot($fresh));
+        });
+
         $attributes = [
             'voucher_type_id' => $type->id,
             'date' => $data['date'],
@@ -128,7 +140,7 @@ class InventoryVoucherService
             return $voucher;
         }
 
-        return Voucher::query()->create($attributes + [
+        return $voucher = Voucher::query()->create($attributes + [
             'number' => $this->vouchers->nextNumber($type),
             'created_by' => $userId,
         ]);

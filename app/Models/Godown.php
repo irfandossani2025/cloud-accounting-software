@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class Godown extends Model
 {
+    use Auditable;
+
     public const MAIN = 'Main Location';
 
     protected $guarded = ['id'];

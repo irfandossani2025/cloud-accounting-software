@@ -6,5 +6,6 @@
     @if ($showDetailed ?? true)
         <button type="button" wire:click="toggleDetailed" data-shortcut="Alt+F1" class="btn-secondary">{{ $detailed ? 'Condensed' : 'Detailed' }} <span class="kbd">Alt+F1</span></button>
     @endif
-    <button type="button" onclick="window.print()" class="btn-secondary" data-shortcut="Ctrl+P">Print <span class="kbd">Ctrl+P</span></button>
+    <button type="button" onclick="window.print()" class="btn-secondary" data-shortcut="Ctrl+P">Print / PDF <span class="kbd">Ctrl+P</span></button>
+    <button type="button" data-export-csv data-shortcut="Ctrl+E" class="btn-secondary">Excel <span class="kbd">Ctrl+E</span></button>
 </div>

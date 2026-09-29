@@ -49,5 +49,15 @@ Server limits this project is built around: **PHP 8.2**, **MariaDB 10.1**, **Nod
 
 ## Backups
 
-Plesk → *Backup Manager* → schedule daily backups that include databases. Also export the database now and then from
-*Databases → Export Dump*.
+1. **Plesk:** *Backup Manager* → schedule daily backups that include databases.
+2. **In the app:** *Gateway → Year-end, period lock & backup → Download backup (.sql)* (administrators only). It contains
+   all company data as `INSERT` statements.
+
+To restore an app backup: create an empty database, point `.env` at it, run the installer's *Install database* step (or
+`php artisan migrate --force`) so the tables exist, **do not** complete the company setup, then import the `.sql` file
+with Plesk → *Databases → phpMyAdmin → Import*.
+
+## Year-end
+
+No closing entries are needed. After finalising a year: download a backup, then *Close & lock year* on the year-end page.
+Lock individual months the same way after filing a VAT return. Locked dates cannot be posted to, altered or cancelled.

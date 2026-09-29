@@ -13,6 +13,12 @@
         @endunless
     </x-page-header>
 
+    @if (\App\Support\PeriodLock::isLocked($voucher?->date ?? $date))
+        <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            The books are locked up to {{ \App\Support\PeriodLock::lockedUntil()->format('d-M-Y') }}. Entries on or before that date cannot be saved or cancelled.
+        </div>
+    @endif
+
     <form wire:submit="save" class="card p-4 sm:p-6">
         <div class="mb-4 grid gap-4 sm:grid-cols-4">
             <div>
@@ -194,8 +200,8 @@
                     <a href="{{ route('vouchers.print', $voucher) }}" target="_blank" class="btn-secondary">Print</a>
                 @endif
             </div>
-            @if ($voucher)
-                <button type="button" wire:click="cancelVoucher" wire:confirm="Cancel this voucher? Its number is kept but it no longer affects the books." class="btn-danger">Cancel voucher</button>
+            @if ($voucher && auth()->user()->can('cancel-vouchers'))
+                <button type=\"button\" wire:click=\"cancelVoucher\" wire:confirm="Cancel this voucher? Its number is kept but it no longer affects the books." class="btn-danger">Cancel voucher</button>
             @endif
         </div>
     </form>

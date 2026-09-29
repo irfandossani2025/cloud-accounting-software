@@ -5,12 +5,14 @@ namespace App\Livewire\Inventory;
 use App\Enums\GroupNature;
 use App\Enums\VatCategory;
 use App\Models\AccountGroup;
+use App\Models\CompanySetting;
 use App\Models\Godown;
 use App\Models\Ledger;
 use App\Models\StockGroup;
 use App\Models\StockItem;
 use App\Models\Unit;
 use App\Support\Money;
+use App\Support\PeriodLock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -111,6 +113,15 @@ class StockItemForm extends Component
 
         if ($openings->contains(fn ($rows) => $rows->count() > 1)) {
             $this->addError('openings', 'Enter each godown only once.');
+
+            return;
+        }
+
+        $existing = $this->item?->openings->map(fn ($o) => $o->godown_id.'|'.Money::toBaisa($o->quantity).'|'.Money::toBaisa($o->rate))->sort()->values()->all() ?? [];
+        $entered = collect($this->openings)->filter(fn ($o) => $o['godown_id'] && Money::toBaisa($o['quantity'] ?: 0) > 0)
+            ->map(fn ($o) => $o['godown_id'].'|'.Money::toBaisa($o['quantity']).'|'.Money::toBaisa($o['rate'] ?: 0))->sort()->values()->all();
+        if ($existing !== $entered && PeriodLock::isLocked(CompanySetting::current()?->books_begin_from)) {
+            $this->addError('openings', 'Opening stock cannot change: the books are locked from their beginning.');
 
             return;
         }

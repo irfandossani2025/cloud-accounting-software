@@ -1,6 +1,8 @@
 <div>
     <x-page-header title="Groups" subtitle="Chart of accounts structure" :back="route('gateway')">
+        @can('manage-masters')
         <a href="{{ route('groups.create') }}" wire:navigate data-shortcut="Alt+C" class="btn-primary">Create <span class="kbd">Alt+C</span></a>
+        @endcan
     </x-page-header>
 
     <div class="card overflow-x-auto">
@@ -10,7 +12,7 @@
                 @foreach ($rows as $row)
                     <tr class="hover:bg-slate-50">
                         <td style="padding-left: {{ 0.75 + $row['depth'] * 1.5 }}rem">
-                            <a href="{{ route('groups.edit', $row['group']) }}" wire:navigate class="{{ $row['depth'] === 0 ? 'font-semibold' : '' }} hover:underline">{{ $row['group']->name }}</a>
+                            @can('manage-masters')<a href="{{ route('groups.edit', $row['group']) }}" wire:navigate class="{{ $row['depth'] === 0 ? 'font-semibold' : '' }} hover:underline">{{ $row['group']->name }}</a>@else<span class="{{ $row['depth'] === 0 ? 'font-semibold' : '' }}">{{ $row['group']->name }}</span>@endcan
                             @if ($row['group']->is_reserved)<span class="ml-1 text-xs text-slate-400">predefined</span>@endif
                         </td>
                         <td>{{ $row['group']->nature->label() }}</td>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TaxRole;
 use App\Enums\VatCategory;
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Ledger extends Model
 {
+    use Auditable;
+
     public const CASH = 'Cash';
 
     public const PROFIT_AND_LOSS = 'Profit & Loss A/c';

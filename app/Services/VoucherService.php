@@ -10,7 +10,9 @@ use App\Models\CostCentre;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Support\Audit;
 use App\Support\Money;
+use App\Support\PeriodLock;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -39,8 +41,10 @@ class VoucherService
         $ledgers = Ledger::query()->whereIn('id', array_column($entries, 'ledger_id'))->get()->keyBy('id');
 
         $this->validate($type, $entries, $ledgers, $data);
+        PeriodLock::assertOpen($data['date'], $voucher?->date);
+        $before = $voucher ? Audit::voucherSnapshot($voucher->fresh()) : null;
 
-        return DB::transaction(function () use ($type, $entries, $ledgers, $data, $voucher, $userId) {
+        return DB::transaction(function () use ($type, $entries, $ledgers, $data, $voucher, $userId, $before) {
             $total = array_sum(array_column($entries, 'debit'));
 
             $attributes = [
@@ -111,6 +115,14 @@ class VoucherService
 
             $this->saveBills($voucher, $type, $entries, $ledgers);
 
+            // Invoices and stock are completed by the caller inside the same transaction; log after commit.
+            DB::afterCommit(function () use ($voucher, $before) {
+                $fresh = $voucher->fresh();
+                Audit::log($before ? 'altered' : 'created', 'Voucher', $voucher->id,
+                    "{$fresh->type->name} {$fresh->number} ".($before ? 'altered' : 'created'),
+                    $before, Audit::voucherSnapshot($fresh));
+            });
+
             return $voucher->load('entries');
         });
     }
@@ -118,7 +130,11 @@ class VoucherService
     /** Cancel keeps the voucher number in sequence (as Tally does) but removes its effect on the books. */
     public function cancel(Voucher $voucher): void
     {
-        DB::transaction(function () use ($voucher) {
+        PeriodLock::assertOpen($voucher->date);
+        $before = Audit::voucherSnapshot($voucher);
+
+        DB::transaction(function () use ($voucher, $before) {
+            Audit::log('cancelled', 'Voucher', $voucher->id, "{$voucher->type->name} {$voucher->number} cancelled", $before);
             $voucher->update(['is_cancelled' => true, 'total' => 0]);
             $voucher->entries()->delete();
             $voucher->stockMovements()->delete();

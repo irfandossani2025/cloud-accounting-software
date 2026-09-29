@@ -16,7 +16,7 @@ class ForexPosition extends Component
 
     public function postRevaluation(ForexService $forex, VoucherService $vouchers)
     {
-        abort_unless(auth()->user()->isAdmin(), 403);
+        $this->authorize('manage-masters');
 
         $entries = $forex->revaluationEntries($this->toDate());
         if (count($entries) < 2) {

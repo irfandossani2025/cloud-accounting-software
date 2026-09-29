@@ -15,6 +15,7 @@
             <div><label class="label">Statement date</label><input type="date" wire:model.live="to" class="input"></div>
             <label class="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" wire:model.live="showReconciled"> Show reconciled</label>
             <button type="button" onclick="window.print()" class="btn-secondary">Print</button>
+            <button type="button" data-export-csv class="btn-secondary">Excel</button>
         </div>
 
         <form wire:submit="save" class="card overflow-x-auto">

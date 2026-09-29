@@ -40,6 +40,7 @@ class VoucherForm extends Component
     {
         if ($voucher?->exists) {
             abort_if($voucher->is_cancelled, 404);
+            $this->authorize('alter-voucher', $voucher);
 
             if ($voucher->is_invoice || $voucher->type->base_type->isInventoryOnly()) {
                 $this->redirect($voucher->editUrl(), navigate: true);
@@ -310,6 +311,10 @@ class VoucherForm extends Component
 
     public function save(VoucherService $service)
     {
+        if ($this->voucherId) {
+            $this->authorize('alter-voucher', Voucher::query()->findOrFail($this->voucherId));
+        }
+
         $this->resetErrorBag();
         $entries = array_map(function ($row) {
             $entry = [
@@ -377,6 +382,7 @@ class VoucherForm extends Component
 
     public function cancelVoucher(VoucherService $service)
     {
+        $this->authorize('cancel-vouchers');
         $voucher = Voucher::query()->findOrFail($this->voucherId);
         $service->cancel($voucher);
         session()->flash('status', "Voucher {$voucher->number} cancelled.");

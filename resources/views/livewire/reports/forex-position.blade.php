@@ -28,7 +28,7 @@
         </table>
     </div>
 
-    @if ($totalGain !== 0 || $rows->contains(fn ($r) => $r->gain))
+    @if (($totalGain !== 0 || $rows->contains(fn ($r) => $r->gain)) && auth()->user()->can('manage-masters'))
         <div class="no-print mt-4 flex items-center gap-3">
             <button wire:click="postRevaluation" wire:confirm="Post a journal adjusting these ledgers to the revalued amounts against Forex Gain/Loss?" class="btn-primary">Post revaluation journal</button>
             <span class="text-xs text-slate-500">Adjusts each ledger's OMR value to the rate on this date, against the Forex Gain/Loss ledger. Balances that are zero in foreign currency but not in OMR are realised gains/losses on settlement.</span>

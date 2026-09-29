@@ -1,6 +1,8 @@
 <div>
     <x-page-header title="Ledgers" :back="route('gateway')">
+        @can('manage-masters')
         <a href="{{ route('ledgers.create') }}" wire:navigate data-shortcut="Alt+C" class="btn-primary">Create <span class="kbd">Alt+C</span></a>
+        @endcan
     </x-page-header>
 
     <div class="no-print mb-3 flex flex-wrap gap-2">
@@ -26,7 +28,7 @@
                         <td class="text-slate-600">{{ $row->ledger->group->name }}</td>
                         <td class="text-xs text-slate-500">{{ $row->ledger->tax_role?->label() ?? $row->ledger->vat_category?->label() }}</td>
                         <td class="num"><x-amount :value="$row->closing" drcr /></td>
-                        <td class="no-print text-right"><a href="{{ route('ledgers.edit', $row->ledger) }}" wire:navigate class="text-xs text-brand-700 hover:underline">Alter</a></td>
+                        <td class="no-print text-right">@can('manage-masters')<a href="{{ route('ledgers.edit', $row->ledger) }}" wire:navigate class="text-xs text-brand-700 hover:underline">Alter</a>@endcan</td>
                     </tr>
                 @empty
                     <tr><td colspan="5" class="py-6 text-center text-slate-400">No ledgers found.</td></tr>

@@ -23,7 +23,10 @@
                     <a href="{{ route('reports.profit-loss') }}" wire:navigate class="hover:underline">Profit &amp; Loss</a>
                 </nav>
                 <div class="flex items-center gap-3 text-sm">
-                    <span class="hidden text-white/70 sm:inline">{{ auth()->user()->name }}</span>
+                    <a href="{{ route('password.edit') }}" wire:navigate class="hidden text-white/70 hover:text-white sm:inline" title="{{ auth()->user()->role->label() }}">{{ auth()->user()->name }}</a>
+                    @if ($company?->locked_until)
+                        <span class="hidden rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/80 md:inline" title="Books locked">🔒 {{ $company->locked_until->format('d-M-y') }}</span>
+                    @endif
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button class="rounded bg-white/10 px-2 py-1 hover:bg-white/20">Log out</button>

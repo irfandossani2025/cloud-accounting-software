@@ -1,6 +1,9 @@
 @php use App\Support\Money; @endphp
 <div>
-    <x-page-header title="Post-dated Cheques" subtitle="Vouchers dated after today. They affect the books only from their date." :back="route('gateway')" />
+    <x-page-header title="Post-dated Cheques" subtitle="Vouchers dated after today. They affect the books only from their date." :back="route('gateway')">
+        <button type="button" onclick="window.print()" class="btn-secondary">Print</button>
+        <button type="button" data-export-csv class="btn-secondary">Excel</button>
+    </x-page-header>
 
     @foreach (['Receivable (receipts)' => $receipts, 'Payable (payments & contra)' => $payments] as $heading => $list)
         <div class="card mb-4 overflow-x-auto">

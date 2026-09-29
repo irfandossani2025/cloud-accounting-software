@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Enums\VoucherBaseType;
+use App\Models\Concerns\Auditable;
 use App\Services\InvoiceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VoucherType extends Model
 {
+    use Auditable;
+
     protected $guarded = ['id'];
 
     protected function casts(): array

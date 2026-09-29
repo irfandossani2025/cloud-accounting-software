@@ -3,6 +3,7 @@
 namespace App\Livewire\Auth;
 
 use App\Models\CompanySetting;
+use App\Support\Audit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -45,6 +46,7 @@ class Login extends Component
 
         RateLimiter::clear($key);
         session()->regenerate();
+        Audit::log('login', 'User', Auth::id(), Auth::user()->email.' signed in');
 
         return redirect()->intended(route('gateway'));
     }

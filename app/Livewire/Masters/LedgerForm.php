@@ -5,10 +5,12 @@ namespace App\Livewire\Masters;
 use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Models\AccountGroup;
+use App\Models\CompanySetting;
 use App\Models\Currency;
 use App\Models\Ledger;
 use App\Services\VoucherService;
 use App\Support\Money;
+use App\Support\PeriodLock;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -144,6 +146,15 @@ class LedgerForm extends Component
 
         if ($this->ledger?->is_reserved) {
             unset($attributes['account_group_id']);
+        }
+
+        // Opening balances belong to the first day of the books; keep them fixed once that is locked.
+        $openingChanged = Money::toBaisa($attributes['opening_balance']) !== Money::toBaisa($this->ledger?->opening_balance ?? 0)
+            || Money::toBaisa($attributes['opening_fx_balance'] ?? 0) !== Money::toBaisa($this->ledger?->opening_fx_balance ?? 0);
+        if ($openingChanged && PeriodLock::isLocked(CompanySetting::current()?->books_begin_from)) {
+            $this->addError('opening_amount', 'Opening balances cannot change: the books are locked from their beginning.');
+
+            return;
         }
 
         $ledger = $this->ledger ?? new Ledger;

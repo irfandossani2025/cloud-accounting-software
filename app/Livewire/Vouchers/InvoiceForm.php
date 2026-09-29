@@ -53,6 +53,7 @@ class InvoiceForm extends Component
     {
         if ($voucher?->exists) {
             abort_if($voucher->is_cancelled, 404);
+            $this->authorize('alter-voucher', $voucher);
             $voucher->load('invoiceLines');
 
             $this->voucherId = $voucher->id;
@@ -151,6 +152,10 @@ class InvoiceForm extends Component
 
     public function save(InvoiceService $invoices)
     {
+        if ($this->voucherId) {
+            $this->authorize('alter-voucher', Voucher::query()->findOrFail($this->voucherId));
+        }
+
         $this->resetErrorBag();
 
         try {
@@ -189,6 +194,7 @@ class InvoiceForm extends Component
 
     public function cancelVoucher(VoucherService $service)
     {
+        $this->authorize('cancel-vouchers');
         $voucher = Voucher::query()->findOrFail($this->voucherId);
         $service->cancel($voucher);
         session()->flash('status', "Voucher {$voucher->number} cancelled.");

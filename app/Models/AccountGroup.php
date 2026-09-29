@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\GroupNature;
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,8 @@ use Illuminate\Support\Collection;
 
 class AccountGroup extends Model
 {
+    use Auditable;
+
     protected $guarded = ['id'];
 
     protected function casts(): array

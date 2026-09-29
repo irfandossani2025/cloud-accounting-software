@@ -2,6 +2,7 @@
 <div>
     <x-page-header :title="'Budget vs actual: '.$budget->name" :subtitle="$budget->from_date->format('d-M-Y').' to '.$budget->to_date->format('d-M-Y')" :back="route('budgets.edit', $budget)">
         <button type="button" onclick="window.print()" class="btn-secondary">Print</button>
+        <button type="button" data-export-csv class="btn-secondary">Excel</button>
     </x-page-header>
 
     <div class="card overflow-x-auto">

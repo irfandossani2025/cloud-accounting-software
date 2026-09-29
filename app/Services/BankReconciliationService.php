@@ -6,6 +6,7 @@ use App\Enums\VoucherBaseType;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherEntry;
+use App\Support\Audit;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -50,7 +51,7 @@ class BankReconciliationService
     /** @param  array<int, ?string>  $bankDates  voucher_entry_id => Y-m-d (or null/'' to clear) */
     public function reconcile(Ledger $bank, array $bankDates): int
     {
-        $entries = VoucherEntry::query()->with('voucher')->where('ledger_id', $bank->id)->whereIn('id', array_keys($bankDates))->get()->keyBy('id');
+        $entries = VoucherEntry::query()->with(['voucher', 'ledger'])->where('ledger_id', $bank->id)->whereIn('id', array_keys($bankDates))->get()->keyBy('id');
         $errors = [];
 
         foreach ($bankDates as $id => $date) {
@@ -75,6 +76,11 @@ class BankReconciliationService
                     $entry->update(['bank_date' => $new]);
                     $changed++;
                 }
+            }
+
+            if ($changed) {
+                Audit::log('reconciled', 'Ledger', $entries->first()->ledger_id,
+                    "{$changed} bank date(s) set on ".$entries->first()->ledger->name, null, $bankDates);
             }
 
             return $changed;

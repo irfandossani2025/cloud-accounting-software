@@ -3,12 +3,18 @@
 namespace App\Providers;
 
 use App\Database\LegacyMariaDbConnection;
+use App\Enums\Role;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Models\CompanySetting;
+use App\Models\User;
+use App\Models\Voucher;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,8 +39,26 @@ class AppServiceProvider extends ServiceProvider
 
         Model::shouldBeStrict(! $this->app->isProduction());
 
+        $this->definePermissions();
+        Livewire::addPersistentMiddleware([EnsureUserIsActive::class]);
+
         View::composer(['layouts.app', 'layouts::app'], function ($view) {
             $view->with('company', rescue(fn () => CompanySetting::current(), null, false));
         });
+    }
+
+    /**
+     * Role permissions. Admin: everything. Accountant: all accounting work. Data entry: vouchers only
+     * (and only their own for alteration). Viewer: reports.
+     */
+    private function definePermissions(): void
+    {
+        Gate::define('admin', fn (User $user) => $user->hasRole(Role::Admin));
+        Gate::define('manage-masters', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
+        Gate::define('reconcile', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
+        Gate::define('cancel-vouchers', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
+        Gate::define('enter-vouchers', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant, Role::DataEntry));
+        Gate::define('alter-voucher', fn (User $user, Voucher $voucher) => $user->hasRole(Role::Admin, Role::Accountant)
+            || ($user->hasRole(Role::DataEntry) && $voucher->created_by === $user->id));
     }
 }

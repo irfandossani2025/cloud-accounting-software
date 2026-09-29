@@ -41,6 +41,7 @@ class InventoryVoucherForm extends Component
     {
         if ($voucher?->exists) {
             abort_if($voucher->is_cancelled, 404);
+            $this->authorize('alter-voucher', $voucher);
             $voucher->load('type', 'stockMovements');
             $this->voucherId = $voucher->id;
             $this->voucher_type_id = $voucher->voucher_type_id;
@@ -92,6 +93,10 @@ class InventoryVoucherForm extends Component
 
     public function save(InventoryVoucherService $service)
     {
+        if ($this->voucherId) {
+            $this->authorize('alter-voucher', Voucher::query()->findOrFail($this->voucherId));
+        }
+
         $this->resetErrorBag();
         $existing = $this->voucherId ? Voucher::query()->findOrFail($this->voucherId) : null;
 
@@ -128,6 +133,7 @@ class InventoryVoucherForm extends Component
 
     public function cancelVoucher(VoucherService $service)
     {
+        $this->authorize('cancel-vouchers');
         $voucher = Voucher::query()->findOrFail($this->voucherId);
         $service->cancel($voucher);
         session()->flash('status', "Voucher {$voucher->number} cancelled.");
