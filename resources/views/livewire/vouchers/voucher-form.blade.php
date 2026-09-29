@@ -201,7 +201,7 @@
                 @endif
             </div>
             @if ($voucher && auth()->user()->can('cancel-vouchers'))
-                <button type=\"button\" wire:click=\"cancelVoucher\" wire:confirm="Cancel this voucher? Its number is kept but it no longer affects the books." class="btn-danger">Cancel voucher</button>
+                <button type="button" wire:click="cancelVoucher" wire:confirm="Cancel this voucher? Its number is kept but it no longer affects the books." class="btn-danger">Cancel voucher</button>
             @endif
         </div>
     </form>

@@ -43,7 +43,7 @@
         <div class="flex justify-between">
             <button class="btn-primary" data-shortcut="Ctrl+A" wire:loading.attr="disabled">Accept <span class="kbd">Ctrl+A</span></button>
             @if ($voucher && auth()->user()->can('cancel-vouchers'))
-                <button type=\"button\" wire:click=\"cancelVoucher\" wire:confirm="Cancel this voucher?" class="btn-danger">Cancel voucher</button>
+                <button type="button" wire:click="cancelVoucher" wire:confirm="Cancel this voucher?" class="btn-danger">Cancel voucher</button>
             @endif
         </div>
     </form>
