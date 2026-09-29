@@ -32,7 +32,7 @@
             <h2 class="font-semibold sm:col-span-3">Sales, purchase &amp; VAT defaults</h2>
             <div>
                 <label class="label">VAT treatment</label>
-                <select wire:model="vat_category" class="input">
+                <select wire:model.live="vat_category" class="input">
                     <option value="">As per ledger</option>
                     @foreach (\App\Enums\VatCategory::cases() as $cat)<option value="{{ $cat->value }}">{{ $cat->label() }}</option>@endforeach
                 </select>
@@ -63,6 +63,37 @@
                 <label class="label">Reorder level</label><input wire:model="reorder_level" class="input text-right font-mono">
                 @error('reorder_level') <p class="error">{{ $message }}</p> @enderror
             </div>
+        </section>
+
+        <section class="grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-3">
+            <h2 class="font-semibold sm:col-span-3">E-invoice classification</h2>
+            <div>
+                <label class="label">Goods or services</label>
+                <select wire:model.live="item_type" class="input">
+                    @foreach (\App\Support\PintOm::ITEM_TYPES as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach
+                </select>
+            </div>
+            @if ($item_type === 'G')
+                <div>
+                    <label class="label">Oman HS code (12 digits)</label>
+                    <x-code-picker list="hs" model="hs_code" placeholder="Type code or words" />
+                    @error('hs_code') <p class="error">{{ $message }}</p> @enderror
+                </div>
+            @endif
+            <div>
+                <label class="label">Industry (ISIC) code</label>
+                <x-code-picker list="isic" model="isic_code" placeholder="Type code or words" />
+                @error('isic_code') <p class="error">{{ $message }}</p> @enderror
+            </div>
+            @if (in_array($vat_category, ['zero_rated', 'exempt'], true))
+                <div class="sm:col-span-3">
+                    <label class="label">{{ $vat_category === 'exempt' ? 'Exemption reason' : 'Zero-rating reason' }}</label>
+                    <select wire:model="exemption_code" class="input">
+                        <option value="">—</option>
+                        @foreach ($vat_category === 'exempt' ? \App\Support\PintOm::EXEMPTION : \App\Support\PintOm::ZERO_RATING as $code => $label)<option value="{{ $code }}">{{ $code }} · {{ $label }}</option>@endforeach
+                    </select>
+                </div>
+            @endif
         </section>
 
         <section class="border-t border-slate-100 pt-4">

@@ -6,6 +6,7 @@ use App\Enums\GroupNature;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
 use App\Models\AccountGroup;
+use App\Models\CompanySetting;
 use App\Models\CostCentre;
 use App\Models\Currency;
 use App\Models\Godown;
@@ -13,6 +14,8 @@ use App\Models\Ledger;
 use App\Models\StockItem;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Services\EInvoice\EInvoiceService;
+use App\Services\EInvoice\PintOmPreflight;
 use App\Services\InvoiceService;
 use App\Services\StockService;
 use App\Services\VoucherService;
@@ -44,6 +47,14 @@ class InvoiceForm extends Component
 
     public ?int $currency_id = null;
 
+    public ?int $original_voucher_id = null;
+
+    public string $issuance_reason = '';
+
+    public string $einvoiceReference = '';
+
+    public string $einvoiceMessage = '';
+
     public string $fx_rate = '';
 
     /** @var list<array{ledger_id: int|string|null, description: string, description_ar: string, quantity: string, unit: string, rate: string, discount: string, vat_category: string}> */
@@ -66,6 +77,8 @@ class InvoiceForm extends Component
             $this->narration = (string) $voucher->narration;
             $this->currency_id = $voucher->currency_id;
             $this->fx_rate = (string) $voucher->fx_rate;
+            $this->original_voucher_id = $voucher->original_voucher_id;
+            $this->issuance_reason = (string) $voucher->issuance_reason;
             $this->lines = $voucher->invoiceLines->map(fn ($line) => [
                 'stock_item_id' => $line->stock_item_id,
                 'cost_centre_id' => $line->cost_centre_id,
@@ -169,6 +182,8 @@ class InvoiceForm extends Component
                 'narration' => $this->narration ?: null,
                 'currency_id' => $this->currency_id ?: null,
                 'fx_rate' => $this->currency_id ? $this->fx_rate : null,
+                'original_voucher_id' => $this->original_voucher_id ?: null,
+                'issuance_reason' => $this->issuance_reason ?: null,
                 'lines' => $this->lines,
             ], $this->voucherId ? Voucher::query()->findOrFail($this->voucherId) : null, auth()->id());
         } catch (\InvalidArgumentException $e) {
@@ -200,6 +215,44 @@ class InvoiceForm extends Component
         session()->flash('status', "Voucher {$voucher->number} cancelled.");
 
         return $this->redirectRoute('reports.day-book', navigate: true);
+    }
+
+    public function generateEinvoice(EInvoiceService $einvoices): void
+    {
+        $this->authorize('einvoice');
+        $this->resetErrorBag();
+
+        try {
+            $einvoices->generate(Voucher::query()->findOrFail($this->voucherId));
+        } catch (ValidationException $e) {
+            $this->addError('einvoice', implode(' ', $e->validator->errors()->all()));
+        }
+    }
+
+    public function markEinvoiceSubmitted(EInvoiceService $einvoices): void
+    {
+        $this->authorize('einvoice');
+        $einvoice = Voucher::query()->findOrFail($this->voucherId)->einvoice;
+        abort_unless($einvoice, 404);
+
+        try {
+            $einvoices->markSubmitted($einvoice, $this->einvoiceReference, auth()->id());
+        } catch (ValidationException $e) {
+            $this->addError('einvoice', implode(' ', $e->validator->errors()->all()));
+        }
+    }
+
+    public function markEinvoiceOutcome(bool $accepted, EInvoiceService $einvoices): void
+    {
+        $this->authorize('einvoice');
+        $einvoice = Voucher::query()->findOrFail($this->voucherId)->einvoice;
+        abort_unless($einvoice, 404);
+
+        try {
+            $einvoices->markOutcome($einvoice, $accepted, $this->einvoiceMessage);
+        } catch (ValidationException $e) {
+            $this->addError('einvoice', implode(' ', $e->validator->errors()->all()));
+        }
     }
 
     private function blankLine(): array
@@ -258,7 +311,19 @@ class InvoiceForm extends Component
             ? $invoices->inOmr($calc['lines'], $this->fx_rate)
             : null;
 
+        $isEinvoiceType = in_array($type->base_type, [VoucherBaseType::Sales, VoucherBaseType::CreditNote], true);
+
         return view('livewire.vouchers.invoice-form', [
+            'isCreditNote' => $type->base_type === VoucherBaseType::CreditNote,
+            'originalInvoices' => $type->base_type === VoucherBaseType::CreditNote && $this->party_ledger_id
+                ? Voucher::query()->where('party_ledger_id', $this->party_ledger_id)->where('is_cancelled', false)
+                    ->whereHas('type', fn ($q) => $q->where('base_type', VoucherBaseType::Sales->value))
+                    ->orderByDesc('date')->limit(200)->get(['id', 'number', 'date', 'total'])
+                : collect(),
+            'einvoice' => $isEinvoiceType && $voucher ? $voucher->einvoice : null,
+            'showEinvoice' => $isEinvoiceType && $voucher && CompanySetting::current()?->einvoicing_enabled,
+            'einvoiceProblems' => $isEinvoiceType && $voucher && ! $voucher->einvoice?->isLocked()
+                ? app(PintOmPreflight::class)->check($voucher) : [],
             'currency' => $currency,
             'currencies' => Currency::query()->orderBy('code')->get(),
             'books' => $books,

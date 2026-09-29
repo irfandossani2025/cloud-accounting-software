@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\CompanySetting;
+use App\Support\PintOm;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -31,19 +33,34 @@ class CompanyForm extends Component
 
     public bool $vat_registered = true;
 
+    public string $street = '';
+
+    public string $additional_street = '';
+
+    public string $po_box = '';
+
+    public string $city = '';
+
+    public string $postal_code = '';
+
+    public string $country_subdivision = 'MO';
+
+    public bool $einvoicing_enabled = false;
+
     public function mount(): void
     {
         abort_unless(auth()->user()->isAdmin(), 403);
 
         $company = CompanySetting::current();
 
-        foreach (['name', 'name_ar', 'address', 'address_ar', 'vatin', 'cr_number', 'phone', 'email'] as $field) {
+        foreach (['name', 'name_ar', 'address', 'address_ar', 'vatin', 'cr_number', 'phone', 'email', 'street', 'additional_street', 'po_box', 'city', 'postal_code', 'country_subdivision'] as $field) {
             $this->{$field} = (string) $company->{$field};
         }
 
         $this->financial_year_start = $company->financial_year_start->toDateString();
         $this->books_begin_from = $company->books_begin_from->toDateString();
         $this->vat_registered = $company->vat_registered;
+        $this->einvoicing_enabled = $company->einvoicing_enabled;
     }
 
     public function save()
@@ -55,14 +72,22 @@ class CompanyForm extends Component
             'name_ar' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:1000',
             'address_ar' => 'nullable|string|max:1000',
-            'vatin' => 'nullable|string|max:30',
+            // Oman VATIN: "OM" + 10 digits (PINT OM IBR-003-OM); required once e-invoicing is on.
+            'vatin' => [$this->einvoicing_enabled ? 'required' : 'nullable', 'regex:/^OM\d{10}$/'],
             'cr_number' => 'nullable|string|max:50',
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
             'financial_year_start' => 'required|date',
             'books_begin_from' => 'required|date|after_or_equal:financial_year_start',
             'vat_registered' => 'boolean',
-        ]);
+            'street' => 'nullable|string|max:255',
+            'additional_street' => 'nullable|string|max:255',
+            'po_box' => 'nullable|string|max:50',
+            'city' => 'nullable|string|max:100',
+            'postal_code' => 'nullable|string|max:20',
+            'country_subdivision' => ['required', Rule::in(array_keys(PintOm::SUBDIVISIONS))],
+            'einvoicing_enabled' => 'boolean',
+        ], ['vatin.regex' => 'The VATIN must be "OM" followed by 10 digits, e.g. OM1100012345.']);
 
         CompanySetting::current()->update(array_map(fn ($v) => $v === '' ? null : $v, $data));
         session()->flash('status', 'Company details saved.');

@@ -10,6 +10,7 @@ use App\Models\CostCentre;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Services\EInvoice\EInvoiceService;
 use App\Support\Audit;
 use App\Support\Money;
 use App\Support\PeriodLock;
@@ -42,6 +43,7 @@ class VoucherService
 
         $this->validate($type, $entries, $ledgers, $data);
         PeriodLock::assertOpen($data['date'], $voucher?->date);
+        EInvoiceService::assertEditable($voucher);
         $before = $voucher ? Audit::voucherSnapshot($voucher->fresh()) : null;
 
         return DB::transaction(function () use ($type, $entries, $ledgers, $data, $voucher, $userId, $before) {
@@ -57,6 +59,8 @@ class VoucherService
                 'is_invoice' => isset($data['invoice_lines']),
                 'currency_id' => $data['currency_id'] ?? null,
                 'fx_rate' => $data['fx_rate'] ?? null,
+                'original_voucher_id' => $data['original_voucher_id'] ?? null,
+                'issuance_reason' => $data['issuance_reason'] ?? null,
                 'narration' => $data['narration'] ?? null,
                 'total' => Money::toDecimal($total),
                 'updated_by' => $userId,
@@ -114,6 +118,7 @@ class VoucherService
             }
 
             $this->saveBills($voucher, $type, $entries, $ledgers);
+            EInvoiceService::invalidate($voucher);
 
             // Invoices and stock are completed by the caller inside the same transaction; log after commit.
             DB::afterCommit(function () use ($voucher, $before) {
@@ -131,6 +136,7 @@ class VoucherService
     public function cancel(Voucher $voucher): void
     {
         PeriodLock::assertOpen($voucher->date);
+        EInvoiceService::assertEditable($voucher);
         $before = Audit::voucherSnapshot($voucher);
 
         DB::transaction(function () use ($voucher, $before) {

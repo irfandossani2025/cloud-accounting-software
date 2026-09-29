@@ -53,6 +53,13 @@ class InvoiceService
         if (! $party) {
             $errors['party_ledger_id'] = 'Select the party (customer or supplier).';
         }
+        $originalId = ($data['original_voucher_id'] ?? null) ?: null;
+        if ($originalId && $type->base_type === VoucherBaseType::CreditNote) {
+            $original = Voucher::query()->with('type')->find($originalId);
+            if (! $original || $original->type->base_type !== VoucherBaseType::Sales || $original->party_ledger_id !== $party?->id || $original->is_cancelled) {
+                $errors['original_voucher_id'] = 'The original invoice must be an active sales invoice of the same customer.';
+            }
+        }
         if (! $calc['lines']) {
             $errors['lines'] = 'Add at least one line with an amount.';
         }
@@ -96,7 +103,7 @@ class InvoiceService
             $dueDate = Carbon::parse($data['date'])->addDays($party->credit_days)->toDateString();
         }
 
-        return DB::transaction(function () use ($type, $data, $dueDate, $party, $entries, $calc, $voucher, $userId, $currencyId, $fxRate) {
+        return DB::transaction(function () use ($type, $data, $dueDate, $party, $entries, $calc, $voucher, $userId, $currencyId, $fxRate, $originalId) {
             $voucher = $this->vouchers->save([
                 'voucher_type_id' => $type->id,
                 'date' => $data['date'],
@@ -109,6 +116,8 @@ class InvoiceService
                 'invoice_lines' => $calc['lines'],
                 'currency_id' => $currencyId,
                 'fx_rate' => $fxRate,
+                'original_voucher_id' => $type->base_type === VoucherBaseType::CreditNote ? $originalId : null,
+                'issuance_reason' => $type->base_type === VoucherBaseType::CreditNote ? (($data['issuance_reason'] ?? null) ?: null) : null,
             ], $voucher, $userId);
 
             $this->postStock($voucher, $type);
