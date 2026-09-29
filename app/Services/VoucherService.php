@@ -6,6 +6,7 @@ use App\Enums\BillType;
 use App\Enums\VoucherBaseType;
 use App\Models\BillAllocation;
 use App\Models\CompanySetting;
+use App\Models\CostCentre;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherType;
@@ -23,6 +24,10 @@ class VoucherService
      * $data: voucher_type_id, date, reference?, reference_date?, due_date?, narration?,
      *        entries: list of [ledger_id, debit, credit, narration?, bills?],
      *        invoice_lines?: pre-computed lines (see InvoiceService), party_ledger_id?
+     *
+     * Entry extras (all optional): instrument_type, instrument_no, instrument_date (bank lines);
+     * cost_centres: list of [cost_centre_id, amount], at most the line amount (the rest is unallocated);
+     * currency_id + fx_amount + fx_rate for a foreign-currency line (fx_amount unsigned, like debit/credit).
      *
      * bills (optional, bill-wise ledgers only): list of [type, reference, amount, due_date?].
      * Without it, Sales/Purchase/Credit Note/Debit Note create a New Ref; other vouchers go On Account.
@@ -46,6 +51,8 @@ class VoucherService
                 'due_date' => $data['due_date'] ?? null,
                 'party_ledger_id' => $data['party_ledger_id'] ?? $this->partyLedgerId($type, $entries, $ledgers),
                 'is_invoice' => isset($data['invoice_lines']),
+                'currency_id' => $data['currency_id'] ?? null,
+                'fx_rate' => $data['fx_rate'] ?? null,
                 'narration' => $data['narration'] ?? null,
                 'total' => Money::toDecimal($total),
                 'updated_by' => $userId,
@@ -53,6 +60,14 @@ class VoucherService
 
             if ($voucher === null || $voucher->voucher_type_id !== $type->id) {
                 $attributes['number'] = $this->nextNumber($type);
+            }
+
+            // Reconciled bank dates survive an edit when the bank line itself is unchanged.
+            $bankDates = [];
+            if ($voucher !== null) {
+                foreach ($voucher->entries()->whereNotNull('bank_date')->get() as $old) {
+                    $bankDates[$old->ledger_id.'|'.Money::toBaisa($old->debit).'|'.Money::toBaisa($old->credit)] = $old->bank_date;
+                }
             }
 
             if ($voucher === null) {
@@ -65,14 +80,29 @@ class VoucherService
             }
 
             foreach ($entries as $i => $entry) {
-                $voucher->entries()->create([
+                $sign = $entry['debit'] > 0 ? 1 : -1;
+                $created = $voucher->entries()->create([
                     'ledger_id' => $entry['ledger_id'],
                     'debit' => Money::toDecimal($entry['debit']),
                     'credit' => Money::toDecimal($entry['credit']),
                     'vat_category' => $ledgers[$entry['ledger_id']]->vat_category,
                     'narration' => $entry['narration'],
                     'sort_order' => $i,
+                    'instrument_type' => $entry['instrument_type'],
+                    'instrument_no' => $entry['instrument_no'],
+                    'instrument_date' => $entry['instrument_date'],
+                    'bank_date' => $bankDates[$entry['ledger_id'].'|'.$entry['debit'].'|'.$entry['credit']] ?? null,
+                    'currency_id' => $entry['currency_id'],
+                    'fx_amount' => $entry['currency_id'] ? Money::toDecimal($sign * $entry['fx_amount']) : null,
+                    'fx_rate' => $entry['currency_id'] ? $entry['fx_rate'] : null,
                 ]);
+
+                foreach ($entry['cost_centres'] ?? [] as $allocation) {
+                    $created->costAllocations()->create([
+                        'cost_centre_id' => $allocation['cost_centre_id'],
+                        'amount' => Money::toDecimal($sign * $allocation['amount']),
+                    ]);
+                }
             }
 
             foreach ($data['invoice_lines'] ?? [] as $i => $line) {
@@ -182,12 +212,30 @@ class VoucherService
                 }
             }
 
+            $costCentres = null;
+            if (isset($row['cost_centres'])) {
+                $costCentres = [];
+                foreach ($row['cost_centres'] as $allocation) {
+                    $amount = Money::toBaisa($allocation['amount'] ?? 0);
+                    if (! empty($allocation['cost_centre_id']) && $amount !== 0) {
+                        $costCentres[] = ['cost_centre_id' => (int) $allocation['cost_centre_id'], 'amount' => $amount];
+                    }
+                }
+            }
+
             $entries[] = [
                 'ledger_id' => (int) $row['ledger_id'],
                 'debit' => $debit,
                 'credit' => $credit,
                 'narration' => $row['narration'] ?? null,
                 'bills' => $bills,
+                'cost_centres' => $costCentres ?: null,
+                'instrument_type' => ($row['instrument_type'] ?? null) ?: null,
+                'instrument_no' => trim((string) ($row['instrument_no'] ?? '')) ?: null,
+                'instrument_date' => ($row['instrument_date'] ?? null) ?: null,
+                'currency_id' => ! empty($row['currency_id']) && ($row['fx_amount'] ?? '') !== '' ? (int) $row['currency_id'] : null,
+                'fx_amount' => ($row['fx_amount'] ?? '') !== '' ? Money::toBaisa($row['fx_amount']) : null,
+                'fx_rate' => ($row['fx_rate'] ?? null) ?: null,
             ];
         }
 
@@ -230,7 +278,8 @@ class VoucherService
             $errors['entries'] = 'One or more ledgers do not exist.';
         } elseif (! isset($errors['entries'])) {
             $errors['entries'] = $this->typeRuleViolation($type->base_type, $entries, $ledgers)
-                ?? $this->billViolation($entries, $ledgers);
+                ?? $this->billViolation($entries, $ledgers)
+                ?? $this->costCentreViolation($entries, $ledgers);
         }
 
         $errors = array_filter($errors);
@@ -264,6 +313,34 @@ class VoucherService
                 }
                 if ($bill['amount'] < 0) {
                     return 'Bill amounts cannot be negative.';
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function costCentreViolation(array $entries, Collection $ledgers): ?string
+    {
+        $validIds = CostCentre::query()->pluck('id')->all();
+
+        foreach ($entries as $entry) {
+            if (! $entry['cost_centres']) {
+                continue;
+            }
+
+            $ledger = $ledgers[$entry['ledger_id']];
+            $allocated = array_sum(array_column($entry['cost_centres'], 'amount'));
+            $amount = $entry['debit'] ?: $entry['credit'];
+
+            // Any remainder is reported as "Not allocated".
+            if ($allocated > $amount) {
+                return "Cost centre allocations for {$ledger->name} (".Money::format($allocated).') exceed the amount ('.Money::format($amount).').';
+            }
+
+            foreach ($entry['cost_centres'] as $allocation) {
+                if ($allocation['amount'] < 0 || ! in_array($allocation['cost_centre_id'], $validIds, true)) {
+                    return "Check the cost centres for {$ledger->name}.";
                 }
             }
         }

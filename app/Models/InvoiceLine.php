@@ -33,6 +33,11 @@ class InvoiceLine extends Model
         return $this->belongsTo(StockItem::class);
     }
 
+    public function costCentre(): BelongsTo
+    {
+        return $this->belongsTo(CostCentre::class);
+    }
+
     public function godown(): BelongsTo
     {
         return $this->belongsTo(Godown::class);

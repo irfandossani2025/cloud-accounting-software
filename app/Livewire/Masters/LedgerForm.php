@@ -5,6 +5,7 @@ namespace App\Livewire\Masters;
 use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Models\AccountGroup;
+use App\Models\Currency;
 use App\Models\Ledger;
 use App\Services\VoucherService;
 use App\Support\Money;
@@ -30,6 +31,12 @@ class LedgerForm extends Component
     public bool $is_bill_wise = false;
 
     public bool $is_active = true;
+
+    public bool $cost_centres_applicable = false;
+
+    public ?int $currency_id = null;
+
+    public string $opening_fx_amount = '';
 
     public string $vat_category = '';
 
@@ -68,6 +75,10 @@ class LedgerForm extends Component
         $this->account_group_id = $this->ledger->account_group_id;
         $this->is_bill_wise = $this->ledger->is_bill_wise;
         $this->is_active = $this->ledger->is_active;
+        $this->cost_centres_applicable = $this->ledger->cost_centres_applicable;
+        $this->currency_id = $this->ledger->currency_id;
+        $fxOpening = Money::toBaisa($this->ledger->opening_fx_balance ?? 0);
+        $this->opening_fx_amount = $fxOpening ? Money::toDecimal(abs($fxOpening)) : '';
         $this->vat_category = $this->ledger->vat_category?->value ?? '';
         $this->tax_role = $this->ledger->tax_role?->value ?? '';
         $this->credit_days = (string) $this->ledger->credit_days;
@@ -91,6 +102,8 @@ class LedgerForm extends Component
             'email' => 'nullable|email|max:255',
             'credit_days' => 'nullable|integer|min:0|max:3650',
             'vatin' => 'nullable|string|max:30',
+            'currency_id' => 'nullable|exists:currencies,id',
+            'opening_fx_amount' => ['nullable', 'regex:/^\d{1,15}(\.\d{1,3})?$/'],
         ], ['opening_amount.regex' => 'Enter an amount with up to 3 decimals.']);
 
         $group = AccountGroup::query()->findOrFail($this->account_group_id);
@@ -110,6 +123,11 @@ class LedgerForm extends Component
             'opening_balance' => Money::toDecimal($this->opening_side === 'Cr' ? -$opening : $opening),
             'is_bill_wise' => $this->is_bill_wise,
             'is_active' => $this->is_active,
+            'cost_centres_applicable' => $group->nature->isRevenue() && $this->cost_centres_applicable,
+            'currency_id' => $group->nature->isRevenue() ? null : ($this->currency_id ?: null),
+            'opening_fx_balance' => ! $group->nature->isRevenue() && $this->currency_id && $this->opening_fx_amount !== ''
+                ? Money::toDecimal(($this->opening_side === 'Cr' ? -1 : 1) * Money::toBaisa($this->opening_fx_amount))
+                : null,
             'vat_category' => $this->vat_category ?: null,
             'tax_role' => $this->tax_role ?: null,
             'vat_rate' => $this->tax_role ? VatCategory::STANDARD_RATE : null,
@@ -167,6 +185,7 @@ class LedgerForm extends Component
             'isBank' => (bool) array_intersect($ancestry, ['Bank Accounts', 'Bank OD A/c']),
             'isTax' => in_array('Duties & Taxes', $ancestry, true),
             'isRevenue' => $group?->nature->isRevenue() ?? false,
+            'currencies' => Currency::query()->orderBy('code')->get(),
         ])->title($this->ledger ? 'Alter ledger' : 'Create ledger');
     }
 }

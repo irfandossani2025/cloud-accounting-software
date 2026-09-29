@@ -25,6 +25,8 @@ class Ledger extends Model
             'vat_category' => VatCategory::class,
             'tax_role' => TaxRole::class,
             'is_bill_wise' => 'boolean',
+            'cost_centres_applicable' => 'boolean',
+            'opening_fx_balance' => 'decimal:3',
             'is_reserved' => 'boolean',
             'is_active' => 'boolean',
         ];
@@ -38,6 +40,27 @@ class Ledger extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(VoucherEntry::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
+    }
+
+    /** Ledgers under Bank Accounts or Bank OD A/c (not cash). */
+    public function isBank(): bool
+    {
+        return in_array($this->account_group_id, static::bankGroupIds(), true);
+    }
+
+    /** @return array<int, int> */
+    public static function bankGroupIds(): array
+    {
+        return once(fn () => AccountGroup::query()
+            ->whereIn('name', ['Bank Accounts', 'Bank OD A/c'])
+            ->get()
+            ->flatMap(fn (AccountGroup $group) => $group->descendantAndSelfIds())
+            ->unique()->values()->all());
     }
 
     public function bills(): HasMany

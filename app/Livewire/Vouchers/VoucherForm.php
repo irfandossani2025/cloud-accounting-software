@@ -6,6 +6,7 @@ use App\Enums\BillType;
 use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
+use App\Models\CostCentre;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherType;
@@ -46,7 +47,7 @@ class VoucherForm extends Component
                 return;
             }
 
-            $voucher->load('entries', 'bills');
+            $voucher->load('entries.costAllocations', 'bills');
 
             $this->voucherId = $voucher->id;
             $this->voucher_type_id = $voucher->voucher_type_id;
@@ -54,7 +55,17 @@ class VoucherForm extends Component
             $this->reference = (string) $voucher->reference;
             $this->reference_date = (string) $voucher->reference_date?->toDateString();
             $this->narration = (string) $voucher->narration;
-            $this->rows = $voucher->entries->map(fn ($e) => [
+            $this->rows = $voucher->entries->map(fn ($e) => $this->row([
+                'instrument_type' => $e->instrument_type?->value ?? '',
+                'instrument_no' => (string) $e->instrument_no,
+                'instrument_date' => (string) $e->instrument_date?->toDateString(),
+                'cost_centres' => $e->costAllocations->map(fn ($a) => [
+                    'cost_centre_id' => $a->cost_centre_id,
+                    'amount' => Money::toDecimal(abs(Money::toBaisa($a->amount))),
+                ])->all(),
+                'currency_id' => $e->currency_id,
+                'fx_amount' => $e->currency_id ? Money::toDecimal(abs(Money::toBaisa($e->fx_amount))) : '',
+                'fx_rate' => $e->currency_id ? (string) $e->fx_rate : '',
                 'side' => Money::toBaisa($e->debit) > 0 ? 'Dr' : 'Cr',
                 'ledger_id' => $e->ledger_id,
                 'amount' => Money::toDecimal(Money::toBaisa($e->debit) ?: Money::toBaisa($e->credit)),
@@ -64,7 +75,7 @@ class VoucherForm extends Component
                     'pending' => '',
                     'amount' => Money::toDecimal(abs(Money::toBaisa($b->amount))),
                 ])->values()->all(),
-            ])->all();
+            ]))->all();
 
             return;
         }
@@ -80,9 +91,20 @@ class VoucherForm extends Component
         // Tally's default first line: the party side of the voucher.
         $first = in_array($type->base_type, [VoucherBaseType::Receipt, VoucherBaseType::Purchase, VoucherBaseType::CreditNote], true) ? 'Cr' : 'Dr';
         $this->rows = [
-            ['side' => $first, 'ledger_id' => null, 'amount' => '', 'bills' => []],
-            ['side' => $first === 'Dr' ? 'Cr' : 'Dr', 'ledger_id' => null, 'amount' => '', 'bills' => []],
+            $this->row(['side' => $first]),
+            $this->row(['side' => $first === 'Dr' ? 'Cr' : 'Dr']),
         ];
+    }
+
+    /** A voucher line with every optional detail present. */
+    private function row(array $values = []): array
+    {
+        return array_merge([
+            'side' => 'Dr', 'ledger_id' => null, 'amount' => '', 'bills' => [],
+            'instrument_type' => '', 'instrument_no' => '', 'instrument_date' => '',
+            'cost_centres' => [],
+            'currency_id' => null, 'fx_amount' => '', 'fx_rate' => '',
+        ], $values);
     }
 
     public function addRow(): void
@@ -90,12 +112,10 @@ class VoucherForm extends Component
         [$debit, $credit] = $this->totals();
         $difference = $debit - $credit;
 
-        $this->rows[] = [
+        $this->rows[] = $this->row([
             'side' => $difference > 0 ? 'Cr' : 'Dr',
-            'ledger_id' => null,
             'amount' => $difference !== 0 ? Money::toDecimal(abs($difference)) : '',
-            'bills' => [],
-        ];
+        ]);
     }
 
     public function removeRow(int $index): void
@@ -114,7 +134,24 @@ class VoucherForm extends Component
         [, $index, $field] = $m;
 
         if ($field === 'ledger_id') {
-            $this->rows[$index]['bills'] = [];
+            $ledger = $value ? Ledger::query()->with('currency')->find($value) : null;
+            $this->rows[$index] = array_merge($this->rows[$index], [
+                'bills' => [], 'cost_centres' => [],
+                'currency_id' => $ledger?->currency_id,
+                'fx_amount' => '',
+                'fx_rate' => $ledger?->currency ? (string) $ledger->currency->rateOn(Carbon::parse($this->date ?: 'today')) : '',
+            ]);
+        }
+
+        // Foreign currency line: OMR amount = currency amount × rate.
+        if (in_array($field, ['fx_amount', 'fx_rate'], true) && $this->rows[$index]['currency_id']) {
+            $fx = $this->safeBaisa($this->rows[$index]['fx_amount']);
+            $rate = $this->rows[$index]['fx_rate'];
+            if ($fx && is_numeric($rate)) {
+                $this->rows[$index]['amount'] = Money::toDecimal(Money::convert($fx, $rate));
+            }
+
+            return;
         }
 
         if ($field === 'ledger_id' && $value && ($this->rows[$index]['amount'] ?? '') === '') {
@@ -164,6 +201,14 @@ class VoucherForm extends Component
         }
 
         $this->rows[$index]['bills'] = $bills;
+    }
+
+    public function addCostCentre(int $index): void
+    {
+        $allocated = array_sum(array_map(fn ($c) => $this->safeBaisa($c['amount']), $this->rows[$index]['cost_centres']));
+        $remaining = $this->safeBaisa($this->rows[$index]['amount']) - $allocated;
+
+        $this->rows[$index]['cost_centres'][] = ['cost_centre_id' => '', 'amount' => $remaining > 0 ? Money::toDecimal($remaining) : ''];
     }
 
     public function addBill(int $index): void
@@ -260,7 +305,7 @@ class VoucherForm extends Component
             return;
         }
 
-        $this->rows[] = ['side' => $signed > 0 ? 'Dr' : 'Cr', 'ledger_id' => $ledger->id, 'amount' => Money::toDecimal(abs($signed)), 'bills' => []];
+        $this->rows[] = $this->row(['side' => $signed > 0 ? 'Dr' : 'Cr', 'ledger_id' => $ledger->id, 'amount' => Money::toDecimal(abs($signed))]);
     }
 
     public function save(VoucherService $service)
@@ -271,7 +316,17 @@ class VoucherForm extends Component
                 'ledger_id' => $row['ledger_id'] ?: null,
                 'debit' => $row['side'] === 'Dr' ? $row['amount'] : 0,
                 'credit' => $row['side'] === 'Cr' ? $row['amount'] : 0,
+                'instrument_type' => $row['instrument_type'] ?? null,
+                'instrument_no' => $row['instrument_no'] ?? null,
+                'instrument_date' => $row['instrument_date'] ?? null,
+                'currency_id' => $row['currency_id'] ?? null,
+                'fx_amount' => $row['fx_amount'] ?? '',
+                'fx_rate' => $row['fx_rate'] ?? null,
             ];
+
+            if (! empty($row['cost_centres'])) {
+                $entry['cost_centres'] = $row['cost_centres'];
+            }
 
             $bills = array_values(array_filter($row['bills'] ?? [], fn ($b) => $this->safeBaisa($b['amount']) > 0));
 
@@ -354,9 +409,11 @@ class VoucherForm extends Component
         $voucher = $this->voucherId ? Voucher::query()->find($this->voucherId) : null;
 
         return view('livewire.vouchers.voucher-form', [
+            'costCentres' => CostCentre::query()->orderBy('name')->get(),
+            'bankGroupIds' => Ledger::bankGroupIds(),
             'type' => $type,
             'voucher' => $voucher,
-            'ledgers' => Ledger::query()->with('group')->where('is_active', true)->orderBy('name')->get(),
+            'ledgers' => Ledger::query()->with(['group', 'currency'])->where('is_active', true)->orderBy('name')->get(),
             'debit' => $debit,
             'credit' => $credit,
             'nextNumber' => $voucher?->number ?? ($type->prefix.$type->next_number),

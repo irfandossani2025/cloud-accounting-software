@@ -73,7 +73,58 @@
                                 @endif
                             </td>
                         </tr>
-                        @if ($row['ledger_id'] && $ledgers->firstWhere('id', (int) $row['ledger_id'])?->is_bill_wise)
+                        @php
+                            $rowLedger = $row['ledger_id'] ? $ledgers->firstWhere('id', (int) $row['ledger_id']) : null;
+                            $isBankRow = $rowLedger && in_array($rowLedger->account_group_id, $bankGroupIds, true);
+                            $isFxRow = $rowLedger && $rowLedger->currency_id;
+                            $isCostRow = $rowLedger && $rowLedger->cost_centres_applicable && $costCentres->isNotEmpty();
+                        @endphp
+                        @if ($isBankRow || $isFxRow || $isCostRow)
+                            <tr wire:key="details-{{ $i }}" class="bg-slate-50/60">
+                                <td></td>
+                                <td colspan="4" class="space-y-2 pb-3 text-xs">
+                                    @if ($isFxRow)
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="w-24 font-semibold text-slate-600">{{ $rowLedger->currency->code }} amount</span>
+                                            <input wire:model.blur="rows.{{ $i }}.fx_amount" class="input w-32 py-0.5 text-right font-mono text-xs" placeholder="0.00">
+                                            <span class="text-slate-500">@ rate</span>
+                                            <input wire:model.blur="rows.{{ $i }}.fx_rate" class="input w-28 py-0.5 text-right font-mono text-xs" placeholder="OMR per {{ $rowLedger->currency->code }}">
+                                            <span class="text-slate-500">= OMR {{ $row['amount'] ?: '0.000' }}</span>
+                                        </div>
+                                    @endif
+                                    @if ($isBankRow)
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="w-24 font-semibold text-slate-600">Instrument</span>
+                                            <select wire:model="rows.{{ $i }}.instrument_type" class="input w-36 py-0.5 text-xs">
+                                                <option value="">—</option>
+                                                @foreach (\App\Enums\InstrumentType::cases() as $it)<option value="{{ $it->value }}">{{ $it->label() }}</option>@endforeach
+                                            </select>
+                                            <input wire:model="rows.{{ $i }}.instrument_no" class="input w-32 py-0.5 text-xs" placeholder="Cheque / ref no.">
+                                            <input type="date" wire:model="rows.{{ $i }}.instrument_date" class="input w-36 py-0.5 text-xs" title="Instrument date">
+                                        </div>
+                                    @endif
+                                    @if ($isCostRow)
+                                        <div>
+                                            <div class="mb-1 flex items-center gap-2">
+                                                <span class="w-24 font-semibold text-slate-600">Cost centres</span>
+                                                <button type="button" wire:click="addCostCentre({{ $i }})" class="rounded border border-slate-300 bg-white px-2 py-0.5 hover:bg-slate-50">+ Cost centre</button>
+                                                @if (! $row['cost_centres'])<span class="text-slate-400">Not allocated.</span>@endif
+                                            </div>
+                                            @foreach ($row['cost_centres'] as $c => $allocation)
+                                                <div wire:key="cc-{{ $i }}-{{ $c }}" class="mb-1 flex items-center gap-2 pl-26">
+                                                    <select wire:model="rows.{{ $i }}.cost_centres.{{ $c }}.cost_centre_id" class="input w-56 py-0.5 text-xs">
+                                                        <option value="">— Cost centre —</option>
+                                                        @foreach ($costCentres as $cc)<option value="{{ $cc->id }}">{{ $cc->name }}</option>@endforeach
+                                                    </select>
+                                                    <input wire:model.blur="rows.{{ $i }}.cost_centres.{{ $c }}.amount" class="input w-32 py-0.5 text-right font-mono text-xs">
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endif
+                        @if ($rowLedger?->is_bill_wise)
                             <tr wire:key="bills-{{ $i }}" class="bg-slate-50/60">
                                 <td></td>
                                 <td colspan="4" class="pb-3">

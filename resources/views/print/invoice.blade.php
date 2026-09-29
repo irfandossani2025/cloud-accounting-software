@@ -3,6 +3,11 @@
     $net = $voucher->invoiceLines->sum(fn ($l) => Money::toBaisa($l->amount));
     $vat = $voucher->invoiceLines->reject(fn ($l) => $l->vat_category === \App\Enums\VatCategory::ReverseCharge)->sum(fn ($l) => Money::toBaisa($l->vat_amount));
     $party = $voucher->party;
+    $code = $voucher->currency?->code ?? 'OMR';
+    $books = $voucher->currency_id ? app(\App\Services\InvoiceService::class)->inOmr($voucher->invoiceLines->map(fn ($l) => [
+        'ledger_id' => $l->ledger_id, 'amount' => $l->amount, 'vat_amount' => $l->vat_amount, 'vat_rate' => $l->vat_rate,
+        'vat_category' => $l->vat_category, 'cost_centre_id' => null,
+    ])->all(), $voucher->fx_rate) : null;
 @endphp
 <x-print-layout :title="$title" :title-ar="$titleAr" :voucher="$voucher" :company="$company">
     <div class="row" style="margin-bottom: 12px;">
@@ -19,6 +24,7 @@
                 <tr><td class="muted">{{ $voucher->type->base_type->value === 'sales' ? 'Invoice no.' : 'Document no.' }}</td><td><strong>{{ $voucher->number }}</strong></td><td class="ar muted">رقم المستند</td></tr>
                 <tr><td class="muted">Date</td><td>{{ $voucher->date->format('d/m/Y') }}</td><td class="ar muted">التاريخ</td></tr>
                 @if ($voucher->reference)<tr><td class="muted">Reference</td><td>{{ $voucher->reference }}</td><td class="ar muted">المرجع</td></tr>@endif
+                @if ($books)<tr><td class="muted">Currency</td><td>{{ $code }} @ {{ rtrim(rtrim($voucher->fx_rate, '0'), '.') }}</td><td class="ar muted">العملة</td></tr>@endif
                 @if ($voucher->due_date)<tr><td class="muted">Due date</td><td>{{ $voucher->due_date->format('d/m/Y') }}</td><td class="ar muted">تاريخ الاستحقاق</td></tr>@endif
             </table>
         </div>
@@ -63,13 +69,19 @@
     <div class="row" style="margin-top: 12px; align-items: flex-start">
         <div style="flex: 1">
             <div class="muted">Amount in words</div>
-            <div><strong>{{ Money::inWords($net + $vat) }}</strong></div>
+            <div><strong>{{ $books ? $code.' '.Money::format($net + $vat).' — OMR '.Money::format($books['total']).' ('.Money::inWords($books['total']).')' : Money::inWords($net + $vat) }}</strong></div>
             @if ($voucher->narration)<p class="muted" style="white-space: pre-line">{{ $voucher->narration }}</p>@endif
         </div>
         <table class="totals" style="width: 45%">
             <tr><td>Total excluding VAT</td><td class="ar muted">الإجمالي غير شامل الضريبة</td><td class="num">{{ Money::format($net) }}</td></tr>
             <tr><td>VAT</td><td class="ar muted">ضريبة القيمة المضافة</td><td class="num">{{ Money::format($vat) }}</td></tr>
-            <tr class="grand"><td>Total (OMR)</td><td class="ar">الإجمالي (ر.ع.)</td><td class="num">{{ Money::format($net + $vat) }}</td></tr>
+            <tr class="grand"><td>Total ({{ $code }})</td><td class="ar">الإجمالي</td><td class="num">{{ Money::format($net + $vat) }}</td></tr>
+            @if ($books)
+                <tr><td colspan="3" style="padding-top: 10px" class="muted">Equivalent in Omani Rials / المعادل بالريال العماني</td></tr>
+                <tr><td>Taxable amount (OMR)</td><td class="ar muted">المبلغ الخاضع</td><td class="num">{{ Money::format($books['net']) }}</td></tr>
+                <tr><td>VAT (OMR)</td><td class="ar muted">الضريبة</td><td class="num">{{ Money::format($books['vat']) }}</td></tr>
+                <tr><td><strong>Total (OMR)</strong></td><td class="ar">الإجمالي (ر.ع.)</td><td class="num"><strong>{{ Money::format($books['total']) }}</strong></td></tr>
+            @endif
         </table>
     </div>
 

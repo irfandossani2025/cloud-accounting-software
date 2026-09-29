@@ -245,7 +245,7 @@ class ReportService
             ->where('v.is_cancelled', false)
             ->whereBetween('v.date', [$from->toDateString(), $to->toDateString()])
             ->orderBy('v.date')->orderBy('v.id')->orderBy('e.sort_order')
-            ->get(['v.id as voucher_id', 'v.date', 'v.number', 'v.narration', 't.name as type', 'e.debit', 'e.credit']);
+            ->get(['v.id as voucher_id', 'v.date', 'v.number', 'v.narration', 't.name as type', 'e.debit', 'e.credit', 'e.fx_amount']);
 
         // Opposite ledger names ("particulars") for each voucher.
         $particulars = DB::table('voucher_entries as e')
@@ -278,6 +278,7 @@ class ReportService
                 'debit' => $debit,
                 'credit' => $credit,
                 'balance' => $balance,
+                'fx' => $line->fx_amount !== null ? Money::toBaisa($line->fx_amount) : null,
             ];
         });
 

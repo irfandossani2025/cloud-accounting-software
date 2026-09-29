@@ -128,4 +128,14 @@ final class Money
 
         return '';
     }
+
+    /** Convert a foreign amount (thousandths) to baisa at an OMR-per-unit rate with up to 6 decimals. */
+    public static function convert(int $foreign, string|float $rate): int
+    {
+        $rateMicro = (int) round(((float) $rate) * 1_000_000);
+        $product = $foreign * $rateMicro;
+        $sign = $product < 0 ? -1 : 1;
+
+        return $sign * intdiv(abs($product) + 500_000, 1_000_000);
+    }
 }

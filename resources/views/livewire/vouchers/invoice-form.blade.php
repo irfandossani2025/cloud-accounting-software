@@ -20,7 +20,7 @@
             </div>
             <div class="sm:col-span-2">
                 <label class="label">{{ $isSalesSide ? 'Customer' : 'Supplier' }} (party A/c)</label>
-                <select wire:model="party_ledger_id" class="input">
+                <select wire:model.live="party_ledger_id" class="input">
                     <option value="">— Select party —</option>
                     @foreach ($parties as $party)
                         <option value="{{ $party->id }}">{{ $party->name }}</option>
@@ -40,6 +40,20 @@
                 <label class="label">Due date</label>
                 <input type="date" wire:model="due_date" class="input" title="Leave blank to use the party's credit period">
             </div>
+            <div>
+                <label class="label">Currency</label>
+                <select wire:model.live="currency_id" class="input">
+                    <option value="">OMR</option>
+                    @foreach ($currencies as $c)<option value="{{ $c->id }}">{{ $c->code }}</option>@endforeach
+                </select>
+            </div>
+            @if ($currency)
+                <div>
+                    <label class="label">Rate (OMR per {{ $currency->code }})</label>
+                    <input wire:model.live.debounce.500ms="fx_rate" class="input text-right font-mono" placeholder="0.000000">
+                    @error('fx_rate') <p class="error">{{ $message }}</p> @enderror
+                </div>
+            @endif
         </div>
 
         <div class="overflow-x-auto">
@@ -55,6 +69,7 @@
                         <th class="w-28 text-right">Rate</th>
                         <th class="w-24 text-right">Discount</th>
                         <th class="w-40">VAT</th>
+                        @if ($costCentres->isNotEmpty())<th class="w-40">Cost centre</th>@endif
                         <th class="w-28 text-right">Amount</th>
                         <th class="w-24 text-right">VAT amt</th>
                         <th class="w-8"></th>
@@ -109,6 +124,14 @@
                                     @endforeach
                                 </select>
                             </td>
+                            @if ($costCentres->isNotEmpty())
+                                <td>
+                                    <select wire:model="lines.{{ $i }}.cost_centre_id" class="input text-xs">
+                                        <option value="">—</option>
+                                        @foreach ($costCentres as $cc)<option value="{{ $cc->id }}">{{ $cc->name }}</option>@endforeach
+                                    </select>
+                                </td>
+                            @endif
                             <td class="num pt-3">{{ $computed[$i] ? $computed[$i]['amount'] : '' }}</td>
                             <td class="num pt-3">{{ $computed[$i] && \App\Support\Money::toBaisa($computed[$i]['vat_amount']) ? $computed[$i]['vat_amount'] : '' }}</td>
                             <td class="pt-2"><button type="button" wire:click="removeLine({{ $i }})" class="text-slate-400 hover:text-red-600" title="Remove line">✕</button></td>
@@ -133,8 +156,14 @@
                 @if ($calc['reverseChargeVat'])
                     <tr><td class="py-1 text-slate-500">Reverse charge VAT (self-assessed, not payable to supplier)</td><td class="num text-slate-500">{{ \App\Support\Money::format($calc['reverseChargeVat']) }}</td></tr>
                 @endif
-                <tr class="text-base font-semibold"><td class="border-t border-slate-300 py-1">Total (OMR)</td><td class="num border-t border-slate-300">{{ \App\Support\Money::format($calc['total']) }}</td></tr>
-                <tr><td colspan="2" class="text-xs text-slate-500">{{ \App\Support\Money::inWords($calc['total']) }}</td></tr>
+                <tr class="text-base font-semibold"><td class="border-t border-slate-300 py-1">Total ({{ $currency?->code ?? 'OMR' }})</td><td class="num border-t border-slate-300">{{ \App\Support\Money::format($calc['total']) }}</td></tr>
+                @if ($books)
+                    <tr class="text-slate-600"><td class="pt-2">In OMR: excluding VAT</td><td class="num pt-2">{{ \App\Support\Money::format($books['net']) }}</td></tr>
+                    <tr class="text-slate-600"><td>In OMR: VAT 5% (accounted in OMR)</td><td class="num">{{ \App\Support\Money::format($books['vat']) }}</td></tr>
+                    <tr class="font-semibold"><td>Total in OMR</td><td class="num">{{ \App\Support\Money::format($books['total']) }}</td></tr>
+                @elseif (! $currency)
+                    <tr><td colspan="2" class="text-xs text-slate-500">{{ \App\Support\Money::inWords($calc['total']) }}</td></tr>
+                @endif
             </table>
         </div>
 

@@ -36,8 +36,27 @@
                     @error('opening_amount') <p class="error">{{ $message }}</p> @enderror
                 </div>
             @endunless
+            @if (($isParty || $isBank) && ! $isRevenue)
+                <div>
+                    <label class="label">Currency</label>
+                    <div class="flex gap-2">
+                        <select wire:model.live="currency_id" class="input w-32">
+                            <option value="">OMR</option>
+                            @foreach ($currencies as $c)<option value="{{ $c->id }}">{{ $c->code }}</option>@endforeach
+                        </select>
+                        @if ($currency_id)
+                            <input wire:model="opening_fx_amount" class="input text-right font-mono" placeholder="Opening in {{ $currencies->firstWhere('id', $currency_id)?->code }}">
+                        @endif
+                    </div>
+                    @error('opening_fx_amount') <p class="error">{{ $message }}</p> @enderror
+                    @if ($currency_id)<p class="mt-1 text-xs text-slate-500">Opening in foreign currency uses the same Dr/Cr side as the OMR opening balance.</p>@endif
+                </div>
+            @endif
             <div class="flex items-end gap-6">
                 <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="is_active"> Active</label>
+                @if ($isRevenue)
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="cost_centres_applicable"> Cost centres applicable</label>
+                @endif
                 @if ($isParty)
                     <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="is_bill_wise"> Maintain bill-by-bill</label>
                 @endif

@@ -9,7 +9,7 @@
                         @if ($kind === 'units')
                             <th>Symbol</th><th>Name</th><th class="text-right">Decimals</th>
                         @else
-                            <th>Name</th><th>{{ $kind === 'stock-groups' ? 'Under' : 'Address' }}</th>
+                            <th>Name</th><th>{{ in_array($kind, ['stock-groups', 'cost-centres']) ? 'Under' : 'Address' }}</th>
                         @endif
                         <th></th>
                     </tr>
@@ -21,7 +21,7 @@
                                 <td class="font-medium">{{ $record->symbol }}</td><td>{{ $record->name }}</td><td class="num">{{ $record->decimal_places }}</td>
                             @else
                                 <td class="font-medium">{{ $record->name }} @if ($record->name_ar)<span class="text-slate-400" dir="rtl">{{ $record->name_ar }}</span>@endif</td>
-                                <td class="text-slate-500">{{ $kind === 'stock-groups' ? ($groups->firstWhere('id', $record->parent_id)?->name ?? 'Primary') : $record->address }}</td>
+                                <td class="text-slate-500">{{ in_array($kind, ['stock-groups', 'cost-centres']) ? ($groups->firstWhere('id', $record->parent_id)?->name ?? 'Primary') : $record->address }}</td>
                             @endif
                             <td class="text-right whitespace-nowrap">
                                 <button wire:click="edit({{ $record->id }})" class="text-xs text-brand-700 hover:underline">Alter</button>
@@ -47,7 +47,7 @@
             @else
                 <div><label class="label">Name</label><input wire:model="form.name" class="input">@error('form.name') <p class="error">{{ $message }}</p> @enderror</div>
                 <div><label class="label">Name (Arabic)</label><input wire:model="form.name_ar" class="input" dir="rtl"></div>
-                @if ($kind === 'stock-groups')
+                @if (in_array($kind, ['stock-groups', 'cost-centres']))
                     <div>
                         <label class="label">Under</label>
                         <select wire:model="form.parent_id" class="input">

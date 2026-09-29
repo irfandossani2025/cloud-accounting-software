@@ -6,6 +6,7 @@ use App\Livewire\Inventory\InventoryVoucherForm;
 use App\Livewire\Vouchers\InvoiceForm;
 use App\Livewire\Vouchers\VoucherForm;
 use App\Models\AccountGroup;
+use App\Models\Budget;
 use App\Models\CompanySetting;
 use App\Models\Ledger;
 use App\Models\StockItem;
@@ -155,6 +156,29 @@ class ScreensTest extends TestCase
         foreach (['stock-groups', 'units', 'godowns'] as $kind) {
             $this->get(route('inventory.masters', $kind))->assertOk();
         }
+    }
+
+    public function test_banking_and_control_pages_render(): void
+    {
+        $bank = Ledger::query()->create(['name' => 'Bank Muscat', 'account_group_id' => AccountGroup::reserved('Bank Accounts')->id]);
+        $budget = Budget::query()->create(['name' => 'FY', 'from_date' => '2026-01-01', 'to_date' => '2026-12-31']);
+        $budget->lines()->create(['account_group_id' => AccountGroup::reserved('Indirect Expenses')->id, 'amount' => '100']);
+
+        $this->get(route('reports.bank-reconciliation'))->assertOk()->assertSee('Bank Muscat');
+        $this->get(route('reports.bank-reconciliation', $bank))->assertOk();
+        $this->get(route('reports.post-dated'))->assertOk();
+        $this->get(route('reports.cost-centres'))->assertOk();
+        $this->get(route('reports.forex'))->assertOk();
+        $this->get(route('reports.budget', $budget))->assertOk()->assertSee('Indirect Expenses');
+        $this->get(route('budgets.index'))->assertOk();
+        $this->get(route('budgets.edit', $budget))->assertOk();
+        $this->get(route('currencies.index'))->assertOk()->assertSee('USD');
+        $this->get(route('inventory.masters', 'cost-centres'))->assertOk();
+
+        // Voucher line details appear for a bank ledger.
+        Livewire::test(VoucherForm::class, ['type' => VoucherType::query()->where('name', 'Payment')->first()])
+            ->set('rows.1.ledger_id', (string) $bank->id)
+            ->assertSee('Instrument');
     }
 
     public function test_report_pages_render(): void

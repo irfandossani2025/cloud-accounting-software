@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Inventory;
 
+use App\Models\CostCentre;
 use App\Models\Godown;
 use App\Models\StockGroup;
 use App\Models\StockItem;
@@ -30,6 +31,7 @@ class SimpleMaster extends Component
         'stock-groups' => ['title' => 'Stock Groups', 'model' => StockGroup::class, 'order' => 'name'],
         'units' => ['title' => 'Units of Measure', 'model' => Unit::class, 'order' => 'symbol'],
         'godowns' => ['title' => 'Godowns (Locations)', 'model' => Godown::class, 'order' => 'name'],
+        'cost-centres' => ['title' => 'Cost Centres', 'model' => CostCentre::class, 'order' => 'name'],
     ];
 
     public function mount(string $kind): void
@@ -70,6 +72,11 @@ class SimpleMaster extends Component
                 'form.name' => 'required|max:100',
                 'form.decimal_places' => 'required|integer|min:0|max:3',
             ],
+            'cost-centres' => [
+                'form.name' => ['required', 'max:255', $unique('name')],
+                'form.name_ar' => 'nullable|max:255',
+                'form.parent_id' => ['nullable', 'exists:cost_centres,id', Rule::notIn([$this->editingId])],
+            ],
             'godowns' => [
                 'form.name' => ['required', 'max:255', $unique('name')],
                 'form.name_ar' => 'nullable|max:255',
@@ -91,6 +98,7 @@ class SimpleMaster extends Component
         $inUse = match ($this->kind) {
             'stock-groups' => $record->children()->exists() || $record->items()->exists(),
             'units' => StockItem::query()->where('unit_id', $id)->exists(),
+            'cost-centres' => $record->children()->exists() || $record->allocations()->exists(),
             'godowns' => $record->is_reserved || StockMovement::query()->where('godown_id', $id)->exists() || StockOpening::query()->where('godown_id', $id)->exists(),
         };
 
@@ -107,7 +115,7 @@ class SimpleMaster extends Component
     private function blank(): array
     {
         return match ($this->kind) {
-            'stock-groups' => ['name' => '', 'name_ar' => '', 'parent_id' => ''],
+            'stock-groups', 'cost-centres' => ['name' => '', 'name_ar' => '', 'parent_id' => ''],
             'units' => ['symbol' => '', 'name' => '', 'decimal_places' => '0'],
             'godowns' => ['name' => '', 'name_ar' => '', 'address' => ''],
         };
@@ -126,7 +134,7 @@ class SimpleMaster extends Component
         return view('livewire.inventory.simple-master', [
             'title' => $config['title'],
             'records' => $config['model']::query()->orderBy($config['order'])->get(),
-            'groups' => StockGroup::query()->orderBy('name')->get(),
+            'groups' => $this->kind === 'cost-centres' ? CostCentre::query()->orderBy('name')->get() : StockGroup::query()->orderBy('name')->get(),
         ])->title($config['title']);
     }
 }

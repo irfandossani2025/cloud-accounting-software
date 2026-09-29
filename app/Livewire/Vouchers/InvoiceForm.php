@@ -6,6 +6,8 @@ use App\Enums\GroupNature;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
 use App\Models\AccountGroup;
+use App\Models\CostCentre;
+use App\Models\Currency;
 use App\Models\Godown;
 use App\Models\Ledger;
 use App\Models\StockItem;
@@ -40,6 +42,10 @@ class InvoiceForm extends Component
 
     public string $narration = '';
 
+    public ?int $currency_id = null;
+
+    public string $fx_rate = '';
+
     /** @var list<array{ledger_id: int|string|null, description: string, description_ar: string, quantity: string, unit: string, rate: string, discount: string, vat_category: string}> */
     public array $lines = [];
 
@@ -57,8 +63,11 @@ class InvoiceForm extends Component
             $this->reference_date = (string) $voucher->reference_date?->toDateString();
             $this->due_date = (string) $voucher->due_date?->toDateString();
             $this->narration = (string) $voucher->narration;
+            $this->currency_id = $voucher->currency_id;
+            $this->fx_rate = (string) $voucher->fx_rate;
             $this->lines = $voucher->invoiceLines->map(fn ($line) => [
                 'stock_item_id' => $line->stock_item_id,
+                'cost_centre_id' => $line->cost_centre_id,
                 'godown_id' => $line->godown_id,
                 'ledger_id' => $line->ledger_id,
                 'description' => $line->description,
@@ -92,6 +101,22 @@ class InvoiceForm extends Component
 
     public function updated(string $property, $value): void
     {
+        // A foreign-currency party sets the invoice currency; a currency sets the latest rate.
+        if ($property === 'party_ledger_id' && $value) {
+            $party = Ledger::query()->find($value);
+            if ($party && $party->currency_id !== $this->currency_id) {
+                $this->currency_id = $party->currency_id;
+                $property = 'currency_id';
+            }
+        }
+
+        if ($property === 'currency_id' || ($property === 'date' && $this->currency_id)) {
+            $currency = $this->currency_id ? Currency::query()->find($this->currency_id) : null;
+            $this->fx_rate = $currency ? (string) $currency->rateOn(rescue(fn () => Carbon::parse($this->date), now(), false)) : '';
+
+            return;
+        }
+
         // Default the line's VAT treatment and description from the chosen ledger.
         if (preg_match('/^lines\.(\d+)\.ledger_id$/', $property, $m) && $value) {
             $ledger = Ledger::query()->find($value);
@@ -137,6 +162,8 @@ class InvoiceForm extends Component
                 'reference_date' => $this->reference_date ?: null,
                 'due_date' => $this->due_date ?: null,
                 'narration' => $this->narration ?: null,
+                'currency_id' => $this->currency_id ?: null,
+                'fx_rate' => $this->currency_id ? $this->fx_rate : null,
                 'lines' => $this->lines,
             ], $this->voucherId ? Voucher::query()->findOrFail($this->voucherId) : null, auth()->id());
         } catch (\InvalidArgumentException $e) {
@@ -171,7 +198,7 @@ class InvoiceForm extends Component
 
     private function blankLine(): array
     {
-        return ['stock_item_id' => null, 'godown_id' => null, 'ledger_id' => null, 'description' => '', 'description_ar' => '', 'quantity' => '1', 'unit' => '', 'rate' => '', 'discount' => '', 'vat_category' => ''];
+        return ['stock_item_id' => null, 'godown_id' => null, 'cost_centre_id' => null, 'ledger_id' => null, 'description' => '', 'description_ar' => '', 'quantity' => '1', 'unit' => '', 'rate' => '', 'discount' => '', 'vat_category' => ''];
     }
 
     public function render(InvoiceService $invoices)
@@ -220,7 +247,16 @@ class InvoiceForm extends Component
             }
         }
 
+        $currency = $this->currency_id ? Currency::query()->find($this->currency_id) : null;
+        $books = $currency && is_numeric($this->fx_rate) && (float) $this->fx_rate > 0
+            ? $invoices->inOmr($calc['lines'], $this->fx_rate)
+            : null;
+
         return view('livewire.vouchers.invoice-form', [
+            'currency' => $currency,
+            'currencies' => Currency::query()->orderBy('code')->get(),
+            'books' => $books,
+            'costCentres' => CostCentre::query()->orderBy('name')->get(),
             'items' => $items,
             'godowns' => Godown::query()->orderBy('name')->get(),
             'available' => $available,

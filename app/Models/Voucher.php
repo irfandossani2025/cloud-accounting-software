@@ -18,6 +18,7 @@ class Voucher extends Model
             'reference_date' => DateOnly::class,
             'due_date' => DateOnly::class,
             'is_invoice' => 'boolean',
+            'fx_rate' => 'decimal:6',
             'total' => 'decimal:3',
             'is_cancelled' => 'boolean',
         ];
@@ -30,6 +31,11 @@ class Voucher extends Model
             $this->type->base_type->isInventoryOnly() => route('inventory-vouchers.edit', $this),
             default => route('vouchers.edit', $this),
         };
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     public function type(): BelongsTo

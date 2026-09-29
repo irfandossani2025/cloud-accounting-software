@@ -7,6 +7,7 @@ use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
 use App\Models\AccountGroup;
+use App\Models\Currency;
 use App\Models\Godown;
 use App\Models\Ledger;
 use App\Models\Unit;
@@ -73,6 +74,8 @@ class ChartOfAccountsSeeder extends Seeder
         $this->ledger('Output VAT - Reverse Charge', 'Duties & Taxes', ['tax_role' => TaxRole::ReverseChargeOutput, 'vat_rate' => VatCategory::STANDARD_RATE]);
         $this->ledger('Input VAT - Reverse Charge', 'Duties & Taxes', ['tax_role' => TaxRole::ReverseChargeInput, 'vat_rate' => VatCategory::STANDARD_RATE]);
 
+        $this->ledger('Forex Gain/Loss', 'Indirect Expenses', reserved: true);
+
         $this->ledger('Sales - Standard Rated', 'Sales Accounts', ['vat_category' => VatCategory::Standard]);
         $this->ledger('Sales - Zero Rated', 'Sales Accounts', ['vat_category' => VatCategory::ZeroRated]);
         $this->ledger('Sales - Exempt', 'Sales Accounts', ['vat_category' => VatCategory::Exempt]);
@@ -93,6 +96,18 @@ class ChartOfAccountsSeeder extends Seeder
         ];
 
         Godown::main();
+
+        // Common currencies for Oman. Only the USD peg (1 OMR = 2.6008 USD) is seeded as a rate;
+        // enter other rates under Currencies.
+        foreach ([
+            ['USD', 'US Dollar', '$', 2], ['AED', 'UAE Dirham', 'AED', 2], ['SAR', 'Saudi Riyal', 'SAR', 2],
+            ['EUR', 'Euro', '€', 2], ['GBP', 'Pound Sterling', '£', 2], ['INR', 'Indian Rupee', '₹', 2],
+        ] as [$code, $name, $symbol, $decimals]) {
+            $currency = Currency::query()->firstOrCreate(['code' => $code], compact('name', 'symbol', 'decimals'));
+            if ($code === 'USD' && ! $currency->rates()->exists()) {
+                $currency->rates()->create(['date' => '2000-01-01', 'rate' => '0.384497']);
+            }
+        }
 
         foreach (['Nos' => 'Numbers', 'Pcs' => 'Pieces', 'Box' => 'Boxes', 'Kg' => 'Kilograms', 'Ltr' => 'Litres', 'Mtr' => 'Metres', 'Hrs' => 'Hours'] as $symbol => $name) {
             Unit::query()->firstOrCreate(['symbol' => $symbol], [

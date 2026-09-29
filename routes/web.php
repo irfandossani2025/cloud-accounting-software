@@ -33,7 +33,10 @@ Route::middleware(['setup', 'auth'])->group(function () {
     Route::get('/ledgers/create', Livewire\Masters\LedgerForm::class)->name('ledgers.create');
     Route::get('/ledgers/{ledger}/edit', Livewire\Masters\LedgerForm::class)->name('ledgers.edit');
 
-    Route::get('/inventory/{kind}', Livewire\Inventory\SimpleMaster::class)->whereIn('kind', ['stock-groups', 'units', 'godowns'])->name('inventory.masters');
+    Route::get('/inventory/{kind}', Livewire\Inventory\SimpleMaster::class)->whereIn('kind', ['stock-groups', 'units', 'godowns', 'cost-centres'])->name('inventory.masters');
+    Route::get('/currencies', Livewire\Masters\CurrencyRates::class)->name('currencies.index');
+    Route::get('/budgets', Livewire\Masters\BudgetForm::class)->name('budgets.index');
+    Route::get('/budgets/{budget}', Livewire\Masters\BudgetForm::class)->name('budgets.edit');
     Route::get('/stock-items', Livewire\Inventory\StockItemIndex::class)->name('stock-items.index');
     Route::get('/stock-items/create', Livewire\Inventory\StockItemForm::class)->name('stock-items.create');
     Route::get('/stock-items/{item}/edit', Livewire\Inventory\StockItemForm::class)->name('stock-items.edit');
@@ -54,5 +57,10 @@ Route::middleware(['setup', 'auth'])->group(function () {
     Route::get('/reports/vat-return', Livewire\Reports\VatReturn::class)->name('reports.vat-return');
     Route::get('/reports/stock-summary', Livewire\Reports\StockSummary::class)->name('reports.stock-summary');
     Route::get('/reports/stock-item/{item}', Livewire\Reports\StockItemRegister::class)->name('reports.stock-item');
+    Route::get('/reports/bank-reconciliation/{ledger?}', Livewire\Reports\BankReconciliation::class)->name('reports.bank-reconciliation');
+    Route::get('/reports/post-dated', Livewire\Reports\PostDated::class)->name('reports.post-dated');
+    Route::get('/reports/cost-centres', Livewire\Reports\CostCentres::class)->name('reports.cost-centres');
+    Route::get('/reports/budget/{budget}', Livewire\Reports\BudgetVariance::class)->name('reports.budget');
+    Route::get('/reports/forex', Livewire\Reports\ForexPosition::class)->name('reports.forex');
     Route::get('/reports/ledger/{ledger}', Livewire\Reports\LedgerStatement::class)->name('reports.ledger');
 });

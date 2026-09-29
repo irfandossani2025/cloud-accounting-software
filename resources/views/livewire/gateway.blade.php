@@ -18,6 +18,15 @@
                 <li><a href="{{ route('inventory.masters', 'godowns') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Godowns</a></li>
             </ul>
 
+            <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Banking &amp; control</h2>
+            <ul class="space-y-1 text-sm">
+                <li><a href="{{ route('reports.bank-reconciliation') }}" wire:navigate data-shortcut="Alt+K" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Bank reconciliation</span><span class="kbd">Alt+K</span></a></li>
+                <li><a href="{{ route('reports.post-dated') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Post-dated cheques</a></li>
+                <li><a href="{{ route('inventory.masters', 'cost-centres') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Cost centres</a></li>
+                <li><a href="{{ route('budgets.index') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Budgets</a></li>
+                <li><a href="{{ route('currencies.index') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Currencies &amp; rates</a></li>
+            </ul>
+
             <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Utilities</h2>
             <ul class="space-y-1 text-sm">
                 <li><a href="{{ route('company.edit') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Company &amp; VAT details</a></li>
@@ -50,6 +59,8 @@
                 <li><a href="{{ route('reports.outstanding', 'receivables') }}" wire:navigate data-shortcut="Alt+R" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Bills Receivable</span><span class="kbd">Alt+R</span></a></li>
                 <li><a href="{{ route('reports.outstanding', 'payables') }}" wire:navigate data-shortcut="Alt+Y" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Bills Payable</span><span class="kbd">Alt+Y</span></a></li>
                 <li><a href="{{ route('reports.stock-summary') }}" wire:navigate data-shortcut="Alt+S" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Stock Summary</span><span class="kbd">Alt+S</span></a></li>
+                <li><a href="{{ route('reports.cost-centres') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Cost Centre Break-up</a></li>
+                <li><a href="{{ route('reports.forex') }}" wire:navigate class="block rounded px-2 py-1 hover:bg-brand-50">Forex Gain/Loss</a></li>
                 <li><a href="{{ route('reports.vat-return') }}" wire:navigate data-shortcut="Alt+X" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>VAT Return (Oman)</span><span class="kbd">Alt+X</span></a></li>
             </ul>
 
