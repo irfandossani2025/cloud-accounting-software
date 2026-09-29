@@ -40,8 +40,8 @@ class VoucherForm extends Component
         if ($voucher?->exists) {
             abort_if($voucher->is_cancelled, 404);
 
-            if ($voucher->is_invoice) {
-                $this->redirectRoute('invoices.edit', $voucher, navigate: true);
+            if ($voucher->is_invoice || $voucher->type->base_type->isInventoryOnly()) {
+                $this->redirect($voucher->editUrl(), navigate: true);
 
                 return;
             }
@@ -65,6 +65,12 @@ class VoucherForm extends Component
                     'amount' => Money::toDecimal(abs(Money::toBaisa($b->amount))),
                 ])->values()->all(),
             ])->all();
+
+            return;
+        }
+
+        if ($type->base_type->isInventoryOnly()) {
+            $this->redirect($type->createUrl(), navigate: true);
 
             return;
         }
@@ -354,7 +360,7 @@ class VoucherForm extends Component
             'debit' => $debit,
             'credit' => $credit,
             'nextNumber' => $voucher?->number ?? ($type->prefix.$type->next_number),
-            'types' => VoucherType::query()->where('is_active', true)->where('is_reserved', true)->get(),
+            'types' => VoucherType::query()->where('is_active', true)->where('is_reserved', true)->get()->reject(fn ($t) => $t->base_type->isInventoryOnly()),
         ])->title(($voucher ? 'Alter ' : '').$type->name);
     }
 }

@@ -2,16 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Inventory\InventoryVoucherForm;
 use App\Livewire\Vouchers\InvoiceForm;
 use App\Livewire\Vouchers\VoucherForm;
 use App\Models\AccountGroup;
 use App\Models\CompanySetting;
 use App\Models\Ledger;
+use App\Models\StockItem;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Services\StockService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -97,6 +102,59 @@ class ScreensTest extends TestCase
             ->assertSee('INV-2')
             ->assertDontSee('INV-1')
             ->assertSee('165.000');
+    }
+
+    public function test_invoice_line_autofills_from_stock_item_and_moves_stock(): void
+    {
+        $item = StockItem::query()->create([
+            'name' => 'Office Chair', 'name_ar' => 'كرسي مكتب',
+            'unit_id' => Unit::query()->where('symbol', 'Pcs')->value('id'),
+            'sales_ledger_id' => Ledger::query()->where('name', 'Sales - Standard Rated')->value('id'),
+            'sales_rate' => '25.500', 'vat_category' => 'standard',
+        ]);
+
+        Livewire::test(InvoiceForm::class, ['type' => VoucherType::query()->where('name', 'Sales')->first()])
+            ->set('date', '2026-03-01')
+            ->set('party_ledger_id', $this->customer->id)
+            ->set('lines.0.stock_item_id', (string) $item->id)
+            ->assertSet('lines.0.description', 'Office Chair')
+            ->assertSet('lines.0.description_ar', 'كرسي مكتب')
+            ->assertSet('lines.0.unit', 'Pcs')
+            ->assertSet('lines.0.rate', '25.500')
+            ->assertSet('lines.0.vat_category', 'standard')
+            ->set('lines.0.quantity', '2')
+            ->assertSee('goes negative')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame(-2000, app(StockService::class)->available($item, Carbon::parse('2026-03-01')));
+    }
+
+    public function test_inventory_voucher_screens(): void
+    {
+        $item = StockItem::query()->create(['name' => 'Widget', 'unit_id' => Unit::query()->value('id')]);
+        $journal = VoucherType::query()->where('name', 'Physical Stock')->first();
+
+        Livewire::test(InventoryVoucherForm::class, ['type' => $journal])
+            ->set('date', '2026-03-01')
+            ->set('source.0.stock_item_id', (string) $item->id)
+            ->set('source.0.quantity', '5')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $voucher = Voucher::query()->sole();
+        $this->get(route('reports.day-book', ['from' => '2026-03-01', 'to' => '2026-03-01']))->assertOk()->assertSee('PS-1');
+
+        Livewire::test(InventoryVoucherForm::class, ['voucher' => $voucher])
+            ->assertSet('source.0.quantity', '5');
+
+        $this->get(route('reports.stock-summary', ['from' => '2026-01-01', 'to' => '2026-12-31']))->assertOk()->assertSee('Widget');
+        $this->get(route('reports.stock-item', $item))->assertOk();
+        $this->get(route('stock-items.index'))->assertOk()->assertSee('Widget');
+        $this->get(route('stock-items.edit', $item))->assertOk();
+        foreach (['stock-groups', 'units', 'godowns'] as $kind) {
+            $this->get(route('inventory.masters', $kind))->assertOk();
+        }
     }
 
     public function test_report_pages_render(): void

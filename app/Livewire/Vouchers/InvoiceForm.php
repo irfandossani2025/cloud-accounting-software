@@ -6,12 +6,16 @@ use App\Enums\GroupNature;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
 use App\Models\AccountGroup;
+use App\Models\Godown;
 use App\Models\Ledger;
+use App\Models\StockItem;
 use App\Models\Voucher;
 use App\Models\VoucherType;
 use App\Services\InvoiceService;
+use App\Services\StockService;
 use App\Services\VoucherService;
 use App\Support\Money;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -54,6 +58,8 @@ class InvoiceForm extends Component
             $this->due_date = (string) $voucher->due_date?->toDateString();
             $this->narration = (string) $voucher->narration;
             $this->lines = $voucher->invoiceLines->map(fn ($line) => [
+                'stock_item_id' => $line->stock_item_id,
+                'godown_id' => $line->godown_id,
                 'ledger_id' => $line->ledger_id,
                 'description' => $line->description,
                 'description_ar' => (string) $line->description_ar,
@@ -90,6 +96,31 @@ class InvoiceForm extends Component
         if (preg_match('/^lines\.(\d+)\.ledger_id$/', $property, $m) && $value) {
             $ledger = Ledger::query()->find($value);
             $this->lines[$m[1]]['vat_category'] = $ledger?->vat_category?->value ?? VatCategory::OutOfScope->value;
+        }
+
+        // A stock item fills in its ledger, description, unit, rate and VAT treatment.
+        if (preg_match('/^lines\.(\d+)\.stock_item_id$/', $property, $m) && $value) {
+            $item = StockItem::query()->with('unit')->find($value);
+            if (! $item) {
+                return;
+            }
+
+            $type = VoucherType::query()->findOrFail($this->voucher_type_id);
+            $salesSide = in_array($type->base_type, [VoucherBaseType::Sales, VoucherBaseType::CreditNote], true);
+            $ledgerId = ($salesSide ? $item->sales_ledger_id : $item->purchase_ledger_id) ?: $this->lines[$m[1]]['ledger_id'];
+            $rate = $salesSide ? $item->sales_rate : $item->purchase_rate;
+
+            $this->lines[$m[1]] = array_merge($this->lines[$m[1]], [
+                'ledger_id' => $ledgerId,
+                'description' => $item->name,
+                'description_ar' => (string) $item->name_ar,
+                'unit' => $item->unit->symbol,
+                'rate' => $rate !== null ? $rate : $this->lines[$m[1]]['rate'],
+                'vat_category' => $item->vat_category?->value
+                    ?? Ledger::query()->find($ledgerId)?->vat_category?->value
+                    ?? $this->lines[$m[1]]['vat_category'],
+                'godown_id' => $this->lines[$m[1]]['godown_id'] ?: Godown::main()->id,
+            ]);
         }
     }
 
@@ -140,7 +171,7 @@ class InvoiceForm extends Component
 
     private function blankLine(): array
     {
-        return ['ledger_id' => null, 'description' => '', 'description_ar' => '', 'quantity' => '1', 'unit' => '', 'rate' => '', 'discount' => '', 'vat_category' => ''];
+        return ['stock_item_id' => null, 'godown_id' => null, 'ledger_id' => null, 'description' => '', 'description_ar' => '', 'quantity' => '1', 'unit' => '', 'rate' => '', 'discount' => '', 'vat_category' => ''];
     }
 
     public function render(InvoiceService $invoices)
@@ -177,8 +208,22 @@ class InvoiceForm extends Component
         }
 
         $voucher = $this->voucherId ? Voucher::query()->find($this->voucherId) : null;
+        $items = StockItem::query()->with('unit')->where('is_active', true)->orderBy('name')->get();
+
+        // Stock available per line, shown on sales-side vouchers so overselling is visible.
+        $available = [];
+        if ($isSalesSide) {
+            $date = rescue(fn () => Carbon::parse($this->date), now(), false);
+            foreach ($this->lines as $i => $line) {
+                $item = $items->firstWhere('id', (int) ($line['stock_item_id'] ?? 0));
+                $available[$i] = $item ? app(StockService::class)->available($item, $date, (int) ($line['godown_id'] ?? 0) ?: null, $this->voucherId) : null;
+            }
+        }
 
         return view('livewire.vouchers.invoice-form', [
+            'items' => $items,
+            'godowns' => Godown::query()->orderBy('name')->get(),
+            'available' => $available,
             'type' => $type,
             'voucher' => $voucher,
             'isSalesSide' => $isSalesSide,
@@ -187,7 +232,7 @@ class InvoiceForm extends Component
             'calc' => $calc,
             'computed' => $computed,
             'nextNumber' => $voucher?->number ?? ($type->prefix.$type->next_number),
-            'types' => VoucherType::query()->where('is_active', true)->where('is_reserved', true)->get(),
+            'types' => VoucherType::query()->where('is_active', true)->where('is_reserved', true)->get()->reject(fn ($t) => $t->base_type->isInventoryOnly()),
         ])->title(($voucher ? 'Alter ' : '').$type->name.' invoice');
     }
 }

@@ -13,8 +13,8 @@
                             @if ($voucher->is_cancelled)
                                 (cancelled)
                             @else
-                                <a href="{{ $voucher->is_invoice ? route('invoices.edit', $voucher) : route('vouchers.edit', $voucher) }}" wire:navigate class="hover:underline">
-                                    {{ $voucher->party?->name ?? $voucher->entries->first()?->ledger->name }}
+                                <a href="{{ $voucher->editUrl() }}" wire:navigate class="hover:underline">
+                                    {{ $voucher->party?->name ?? $voucher->entries->first()?->ledger->name ?? $voucher->type->name }}
                                 </a>
                                 @if ($voucher->narration)<div class="text-xs text-slate-400">{{ $voucher->narration }}</div>@endif
                             @endif

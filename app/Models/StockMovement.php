@@ -2,24 +2,23 @@
 
 namespace App\Models;
 
-use App\Enums\VatCategory;
+use App\Casts\DateOnly;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class InvoiceLine extends Model
+class StockMovement extends Model
 {
     protected $guarded = ['id'];
 
     protected function casts(): array
     {
         return [
+            'date' => DateOnly::class,
             'quantity' => 'decimal:3',
             'rate' => 'decimal:3',
-            'discount' => 'decimal:3',
-            'amount' => 'decimal:3',
-            'vat_rate' => 'decimal:2',
-            'vat_amount' => 'decimal:3',
-            'vat_category' => VatCategory::class,
+            'value' => 'decimal:3',
+            'affects_cost' => 'boolean',
+            'is_transfer' => 'boolean',
         ];
     }
 
@@ -28,18 +27,13 @@ class InvoiceLine extends Model
         return $this->belongsTo(Voucher::class);
     }
 
-    public function stockItem(): BelongsTo
+    public function item(): BelongsTo
     {
-        return $this->belongsTo(StockItem::class);
+        return $this->belongsTo(StockItem::class, 'stock_item_id');
     }
 
     public function godown(): BelongsTo
     {
         return $this->belongsTo(Godown::class);
-    }
-
-    public function ledger(): BelongsTo
-    {
-        return $this->belongsTo(Ledger::class);
     }
 }

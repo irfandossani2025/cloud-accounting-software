@@ -91,6 +91,7 @@ class VoucherService
         DB::transaction(function () use ($voucher) {
             $voucher->update(['is_cancelled' => true, 'total' => 0]);
             $voucher->entries()->delete();
+            $voucher->stockMovements()->delete();
             $voucher->invoiceLines()->delete();
             $voucher->bills()->delete();
         });
@@ -309,7 +310,7 @@ class VoucherService
         return null;
     }
 
-    private function nextNumber(VoucherType $type): string
+    public function nextNumber(VoucherType $type): string
     {
         $locked = VoucherType::query()->lockForUpdate()->findOrFail($type->id);
 

@@ -29,6 +29,7 @@ Tests: `php artisan test`
 | Reports | `App\Services\ReportService`: Trial Balance, P&L, Balance Sheet, Day Book, Ledger |
 | Invoice mode (Ctrl+H toggles) | `App\Services\InvoiceService` prices lines (qty × rate − discount), calculates VAT per line and generates the double entry; lines are kept in `invoice_lines` for printing |
 | Bill-wise details | `bill_allocations` (New Ref / Agst Ref / Advance / On Account); `App\Services\OutstandingService` builds Bills Receivable/Payable with ageing |
+| Inventory | `stock_items`, `stock_openings`, `stock_movements`. `App\Services\StockService` values stock at weighted average cost; `InventoryVoucherService` posts Stock Journal (Alt+F7) and Physical Stock (Alt+F10). Opening/closing stock feed the P&L, Balance Sheet and Trial Balance |
 | VAT return | `App\Services\VatReturnService`: supplies and purchases by VAT treatment, output/input VAT and reverse charge, net payable |
 
 Money is always handled as integer baisa in PHP (`App\Support\Money`) and stored as `DECIMAL(18,3)`.
@@ -38,12 +39,12 @@ out of scope). VAT ledgers under *Duties & Taxes* carry a tax role. *Apply VAT* 
 lines, including both sides of a reverse charge.
 
 Keyboard: F4–F9 voucher types · Ctrl+H invoice/accounting mode · Ctrl+A accept · Alt+Q print last saved · Esc back · Alt+V apply VAT · Alt+N new line · Alt+F1 detailed/condensed ·
-Alt+C create · Alt+L ledgers · Alt+B/P/T/D/R/Y/X reports. (Shortcuts use the real Ctrl key, so Cmd+A still selects text on a Mac.)
+Alt+C create · Alt+L ledgers · Alt+B/P/T/D/R/Y/X/S reports · Alt+I stock items. (Shortcuts use the real Ctrl key, so Cmd+A still selects text on a Mac.)
 
 ## Roadmap
 
 - [x] **Phase 1: core books.** Groups, ledgers, 8 accounting voucher types, Trial Balance, P&L, Balance Sheet, Day Book, Ledger, installer
 - [x] **Phase 2: invoicing & VAT.** Item-invoice mode for Sales/Purchase/Credit/Debit Notes, bilingual (Arabic/English) tax invoice print, Oman VAT return working, bill-wise outstanding with ageing and receipt/payment allocation
-- [ ] **Phase 3: inventory.** Stock groups/items, units, godowns, stock journal, stock summary, closing stock valuation in P&L
+- [x] **Phase 3: inventory.** Stock groups/items, units, godowns, opening stock, items on invoices, stock journal (transfers, production), physical stock, stock summary, item register, weighted-average closing stock in P&L and Balance Sheet
 - [ ] **Phase 4: banking & control.** Bank reconciliation, cost centres, budgets, post-dated cheques, multi-currency
 - [ ] **Phase 5: admin.** Users & roles, audit trail (edit log), period lock, Excel/PDF exports, year-end, e-invoicing readiness

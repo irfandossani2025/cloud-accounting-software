@@ -16,6 +16,14 @@ use Illuminate\Support\Facades\DB;
  */
 class ReportService
 {
+    public function __construct(private StockService $stock) {}
+
+    /** Stock value at the start of $date (i.e. closing stock of the previous day). */
+    public function openingStock(Carbon $date): int
+    {
+        return $this->stock->closingValue($date->copy()->subDay());
+    }
+
     /** Start of the financial year containing $date. */
     public function financialYearStart(Carbon $date): Carbon
     {
@@ -71,6 +79,9 @@ class ReportService
             return (object) (compact('ledger', 'opening', 'debit', 'credit') + ['closing' => $opening + $debit - $credit]);
         })->keyBy(fn ($row) => $row->ledger->id);
 
+        // Stock gained or lost in earlier years is part of the accumulated profit.
+        $retained -= $this->openingStock($fyStart) - $this->stock->openingMasterValue();
+
         if ($retained !== 0 && ($pl = $rows->first(fn ($r) => $r->ledger->name === Ledger::PROFIT_AND_LOSS))) {
             $pl->opening += $retained;
             $pl->closing += $retained;
@@ -82,7 +93,8 @@ class ReportService
     /** Sum of all ledger opening balances; non-zero means the opening trial balance does not agree. */
     public function openingDifference(): int
     {
-        return Ledger::query()->pluck('opening_balance')->sum(fn ($v) => Money::toBaisa($v));
+        return Ledger::query()->pluck('opening_balance')->sum(fn ($v) => Money::toBaisa($v))
+            + $this->stock->openingMasterValue();
     }
 
     /**
@@ -136,10 +148,12 @@ class ReportService
     {
         $rows = $this->ledgerBalances($from, $to);
         $tree = $this->groupTree($rows, fn ($r) => $r->closing);
+        $openingStock = $this->openingStock($this->financialYearStart($from));
 
         return [
             'tree' => $tree,
-            'debit' => $rows->sum(fn ($r) => max($r->closing, 0)),
+            'openingStock' => $openingStock,
+            'debit' => $rows->sum(fn ($r) => max($r->closing, 0)) + $openingStock,
             'credit' => $rows->sum(fn ($r) => max(-$r->closing, 0)),
             'openingDifference' => $this->openingDifference(),
         ];
@@ -155,17 +169,22 @@ class ReportService
         $income = collect($this->groupTree($rows, fn ($r) => -$periodNet($r), fn ($g) => $revenue($g) && $g->nature->value === 'income'));
         $expenses = collect($this->groupTree($rows, $periodNet, fn ($g) => $revenue($g) && $g->nature->value === 'expenses'));
 
-        $gpIncome = $income->filter(fn ($n) => $n['group']->affects_gross_profit)->sum('total');
-        $gpExpense = $expenses->filter(fn ($n) => $n['group']->affects_gross_profit)->sum('total');
+        $openingStock = $this->openingStock($from);
+        $closingStock = $this->stock->closingValue($to);
+
+        $gpIncome = $income->filter(fn ($n) => $n['group']->affects_gross_profit)->sum('total') + $closingStock;
+        $gpExpense = $expenses->filter(fn ($n) => $n['group']->affects_gross_profit)->sum('total') + $openingStock;
         $grossProfit = $gpIncome - $gpExpense;
 
-        $netProfit = $income->sum('total') - $expenses->sum('total');
+        $netProfit = $income->sum('total') + $closingStock - $expenses->sum('total') - $openingStock;
 
         return [
             'tradingIncome' => $income->filter(fn ($n) => $n['group']->affects_gross_profit)->values(),
             'tradingExpenses' => $expenses->filter(fn ($n) => $n['group']->affects_gross_profit)->values(),
             'indirectIncome' => $income->reject(fn ($n) => $n['group']->affects_gross_profit)->values(),
             'indirectExpenses' => $expenses->reject(fn ($n) => $n['group']->affects_gross_profit)->values(),
+            'openingStock' => $openingStock,
+            'closingStock' => $closingStock,
             'grossProfit' => $grossProfit,
             'netProfit' => $netProfit,
         ];
@@ -188,12 +207,14 @@ class ReportService
         $openingDifference = $this->openingDifference();
 
         $liabilityTotal = collect($liabilities)->sum('total') + $plOpening + $netProfit;
-        $assetTotal = collect($assets)->sum('total');
+        $closingStock = $this->stock->closingValue($asOf);
+        $assetTotal = collect($assets)->sum('total') + $closingStock;
 
         return [
             'liabilities' => $liabilities,
             'assets' => $assets,
             'plOpening' => $plOpening,
+            'closingStock' => $closingStock,
             'netProfit' => $netProfit,
             'openingDifference' => $openingDifference,
             // Opening difference sits on whichever side makes the sheet balance, as Tally shows it.

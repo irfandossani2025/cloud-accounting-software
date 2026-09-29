@@ -6,6 +6,9 @@
         <table class="table">
             <thead><tr><th>Particulars</th><th class="text-right">Debit</th><th class="text-right">Credit</th></tr></thead>
             <tbody>
+                @if ($openingStock)
+                    <tr class="font-semibold"><td><a href="{{ route('reports.stock-summary') }}" wire:navigate class="hover:underline">Opening Stock</a></td><td class="num">{{ \App\Support\Money::format($openingStock) }}</td><td></td></tr>
+                @endif
                 @include('livewire.reports.partials.tree', ['nodes' => $tree, 'depth' => 0, 'columns' => 'trial'])
                 @if ($openingDifference !== 0)
                     <tr class="text-amber-700">

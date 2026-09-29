@@ -23,6 +23,15 @@ class Voucher extends Model
         ];
     }
 
+    public function editUrl(): string
+    {
+        return match (true) {
+            $this->is_invoice => route('invoices.edit', $this),
+            $this->type->base_type->isInventoryOnly() => route('inventory-vouchers.edit', $this),
+            default => route('vouchers.edit', $this),
+        };
+    }
+
     public function type(): BelongsTo
     {
         return $this->belongsTo(VoucherType::class, 'voucher_type_id');
@@ -41,6 +50,11 @@ class Voucher extends Model
     public function invoiceLines(): HasMany
     {
         return $this->hasMany(InvoiceLine::class)->orderBy('sort_order');
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
     }
 
     public function bills(): HasMany

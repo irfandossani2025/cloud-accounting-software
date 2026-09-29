@@ -12,12 +12,16 @@ enum VoucherBaseType: string
     case Purchase = 'purchase';
     case CreditNote = 'credit_note';
     case DebitNote = 'debit_note';
+    case StockJournal = 'stock_journal';
+    case PhysicalStock = 'physical_stock';
 
     public function label(): string
     {
         return match ($this) {
             self::CreditNote => 'Credit Note',
             self::DebitNote => 'Debit Note',
+            self::StockJournal => 'Stock Journal',
+            self::PhysicalStock => 'Physical Stock',
             default => ucfirst($this->value),
         };
     }
@@ -34,6 +38,14 @@ enum VoucherBaseType: string
             self::Purchase => 'F9',
             self::CreditNote => 'Ctrl+F8',
             self::DebitNote => 'Ctrl+F9',
+            self::StockJournal => 'Alt+F7',
+            self::PhysicalStock => 'Alt+F10',
         };
+    }
+
+    /** Inventory-only vouchers carry no ledger entries. */
+    public function isInventoryOnly(): bool
+    {
+        return $this === self::StockJournal || $this === self::PhysicalStock;
     }
 }

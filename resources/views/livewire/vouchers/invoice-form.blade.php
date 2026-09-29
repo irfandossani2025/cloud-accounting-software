@@ -2,7 +2,7 @@
     <x-page-header :title="($voucher ? 'Alter ' : '').$type->name" :subtitle="'No. '.$nextNumber.' · Invoice mode'" :back="route('gateway')">
         @unless ($voucher)
             @foreach ($types as $t)
-                <a href="{{ in_array($t->base_type, \App\Services\InvoiceService::INVOICE_TYPES, true) ? route('invoices.create', $t) : route('vouchers.create', $t) }}" wire:navigate data-shortcut="{{ $t->base_type->shortcut() }}"
+                <a href="{{ $t->createUrl() }}" wire:navigate data-shortcut="{{ $t->base_type->shortcut() }}"
                    class="rounded px-2 py-1 text-xs {{ $t->id === $type->id ? 'bg-brand-600 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}">
                     {{ $t->base_type->shortcut() }} {{ $t->name }}
                 </a>
@@ -43,10 +43,11 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="table min-w-[64rem]">
+            <table class="table min-w-[76rem]">
                 <thead>
                     <tr>
                         <th class="w-8">#</th>
+                        <th class="w-56">Stock item</th>
                         <th class="w-56">{{ $isSalesSide ? 'Sales' : 'Purchase / expense' }} ledger</th>
                         <th>Description</th>
                         <th class="w-24 text-right">Qty</th>
@@ -63,6 +64,27 @@
                     @foreach ($lines as $i => $line)
                         <tr wire:key="line-{{ $i }}" class="align-top">
                             <td class="pt-3 text-slate-400">{{ $i + 1 }}</td>
+                            <td>
+                                <select wire:model.live="lines.{{ $i }}.stock_item_id" class="input">
+                                    <option value="">— Service / no item —</option>
+                                    @foreach ($items as $item)
+                                        <option value="{{ $item->id }}">{{ $item->name }}</option>
+                                    @endforeach
+                                </select>
+                                @if ($line['stock_item_id'])
+                                    @if ($godowns->count() > 1)
+                                        <select wire:model.live="lines.{{ $i }}.godown_id" class="input mt-1 text-xs">
+                                            @foreach ($godowns as $g)<option value="{{ $g->id }}">{{ $g->name }}</option>@endforeach
+                                        </select>
+                                    @endif
+                                    @if (isset($available[$i]))
+                                        @php $q = rescue(fn () => \App\Support\Money::toBaisa($line['quantity'] ?: 0), 0, false); @endphp
+                                        <div class="mt-1 text-xs {{ $available[$i] - $q < 0 ? 'text-red-600' : 'text-slate-500' }}">
+                                            Available: {{ \App\Services\StockService::qty($available[$i]) }}{{ $available[$i] - $q < 0 ? ' — goes negative' : '' }}
+                                        </div>
+                                    @endif
+                                @endif
+                            </td>
                             <td>
                                 <select wire:model.live="lines.{{ $i }}.ledger_id" class="input">
                                     <option value="">— Ledger —</option>

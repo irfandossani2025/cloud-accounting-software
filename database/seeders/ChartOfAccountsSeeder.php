@@ -7,12 +7,14 @@ use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
 use App\Models\AccountGroup;
+use App\Models\Godown;
 use App\Models\Ledger;
+use App\Models\Unit;
 use App\Models\VoucherType;
 use Illuminate\Database\Seeder;
 
 /**
- * Tally's 28 predefined groups, reserved ledgers, Oman VAT ledgers and the accounting voucher types.
+ * Tally's 28 predefined groups, reserved ledgers, Oman VAT ledgers, voucher types, units and the main godown.
  * Idempotent: safe to run again.
  */
 class ChartOfAccountsSeeder extends Seeder
@@ -86,7 +88,18 @@ class ChartOfAccountsSeeder extends Seeder
             [VoucherBaseType::Purchase, 'PUR-'],
             [VoucherBaseType::CreditNote, 'CN-'],
             [VoucherBaseType::DebitNote, 'DN-'],
+            [VoucherBaseType::StockJournal, 'SJ-'],
+            [VoucherBaseType::PhysicalStock, 'PS-'],
         ];
+
+        Godown::main();
+
+        foreach (['Nos' => 'Numbers', 'Pcs' => 'Pieces', 'Box' => 'Boxes', 'Kg' => 'Kilograms', 'Ltr' => 'Litres', 'Mtr' => 'Metres', 'Hrs' => 'Hours'] as $symbol => $name) {
+            Unit::query()->firstOrCreate(['symbol' => $symbol], [
+                'name' => $name,
+                'decimal_places' => in_array($symbol, ['Kg', 'Ltr', 'Mtr', 'Hrs'], true) ? 3 : 0,
+            ]);
+        }
 
         foreach ($types as [$base, $prefix]) {
             VoucherType::query()->firstOrCreate(['name' => $base->label()], [

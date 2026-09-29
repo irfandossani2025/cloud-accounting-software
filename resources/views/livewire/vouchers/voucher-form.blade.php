@@ -2,7 +2,7 @@
     <x-page-header :title="($voucher ? 'Alter ' : '').$type->name" :subtitle="'No. '.$nextNumber" :back="route('gateway')">
         @unless ($voucher)
             @foreach ($types as $t)
-                <a href="{{ in_array($t->base_type, \App\Services\InvoiceService::INVOICE_TYPES, true) ? route('invoices.create', $t) : route('vouchers.create', $t) }}" wire:navigate data-shortcut="{{ $t->base_type->shortcut() }}"
+                <a href="{{ $t->createUrl() }}" wire:navigate data-shortcut="{{ $t->base_type->shortcut() }}"
                    class="rounded px-2 py-1 text-xs {{ $t->id === $type->id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
                     {{ $t->base_type->shortcut() }} {{ $t->name }}
                 </a>

@@ -42,7 +42,7 @@ class AccountingTest extends TestCase
     {
         $this->assertSame(28, AccountGroup::query()->count());
         $this->assertSame(15, AccountGroup::query()->whereNull('parent_id')->count());
-        $this->assertSame(8, VoucherType::query()->count());
+        $this->assertSame(10, VoucherType::query()->count());
     }
 
     public function test_unbalanced_voucher_is_rejected(): void

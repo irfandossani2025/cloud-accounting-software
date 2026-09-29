@@ -23,6 +23,9 @@
                 <thead><tr><th>Assets</th><th class="text-right">Amount</th></tr></thead>
                 <tbody>
                     @include('livewire.reports.partials.tree', ['nodes' => $assets, 'depth' => 0, 'columns' => 'single'])
+                    @if ($closingStock)
+                        <tr class="font-semibold"><td><a href="{{ route('reports.stock-summary') }}?to={{ $to }}" wire:navigate class="hover:underline">Closing Stock</a></td><td class="num">{{ \App\Support\Money::format($closingStock) }}</td></tr>
+                    @endif
                     @if ($openingDifference < 0)
                         <tr class="text-amber-700"><td>Difference in opening balances</td><td class="num">{{ \App\Support\Money::format(-$openingDifference) }}</td></tr>
                     @endif

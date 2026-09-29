@@ -5,7 +5,7 @@
     @php
         $gpExpenseSide = $grossProfit > 0 ? $grossProfit : 0;
         $gpIncomeSide = $grossProfit < 0 ? -$grossProfit : 0;
-        $tradingTotal = collect($tradingExpenses)->sum('total') + $gpExpenseSide;
+        $tradingTotal = collect($tradingExpenses)->sum('total') + $openingStock + $gpExpenseSide;
         $netExpenseSide = $netProfit > 0 ? $netProfit : 0;
         $netIncomeSide = $netProfit < 0 ? -$netProfit : 0;
         $plTotal = collect($indirectExpenses)->sum('total') + $gpIncomeSide + $netExpenseSide;
@@ -16,6 +16,9 @@
             <table class="table">
                 <thead><tr><th>Particulars</th><th class="text-right">Amount</th></tr></thead>
                 <tbody>
+                    @if ($openingStock)
+                        <tr class="font-semibold"><td><a href="{{ route('reports.stock-summary') }}?from={{ $from }}&to={{ $to }}" wire:navigate class="hover:underline">Opening Stock</a></td><td class="num">{{ \App\Support\Money::format($openingStock) }}</td></tr>
+                    @endif
                     @include('livewire.reports.partials.tree', ['nodes' => $tradingExpenses, 'depth' => 0, 'columns' => 'single'])
                     @if ($gpExpenseSide)
                         <tr class="font-semibold text-green-700"><td>Gross profit c/o</td><td class="num">{{ \App\Support\Money::format($gpExpenseSide) }}</td></tr>
@@ -38,6 +41,9 @@
                 <thead><tr><th>Particulars</th><th class="text-right">Amount</th></tr></thead>
                 <tbody>
                     @include('livewire.reports.partials.tree', ['nodes' => $tradingIncome, 'depth' => 0, 'columns' => 'single'])
+                    @if ($closingStock)
+                        <tr class="font-semibold"><td><a href="{{ route('reports.stock-summary') }}?from={{ $from }}&to={{ $to }}" wire:navigate class="hover:underline">Closing Stock</a></td><td class="num">{{ \App\Support\Money::format($closingStock) }}</td></tr>
+                    @endif
                     @if ($gpIncomeSide)
                         <tr class="font-semibold text-red-700"><td>Gross loss c/o</td><td class="num">{{ \App\Support\Money::format($gpIncomeSide) }}</td></tr>
                     @endif

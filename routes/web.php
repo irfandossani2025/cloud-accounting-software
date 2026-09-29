@@ -33,6 +33,13 @@ Route::middleware(['setup', 'auth'])->group(function () {
     Route::get('/ledgers/create', Livewire\Masters\LedgerForm::class)->name('ledgers.create');
     Route::get('/ledgers/{ledger}/edit', Livewire\Masters\LedgerForm::class)->name('ledgers.edit');
 
+    Route::get('/inventory/{kind}', Livewire\Inventory\SimpleMaster::class)->whereIn('kind', ['stock-groups', 'units', 'godowns'])->name('inventory.masters');
+    Route::get('/stock-items', Livewire\Inventory\StockItemIndex::class)->name('stock-items.index');
+    Route::get('/stock-items/create', Livewire\Inventory\StockItemForm::class)->name('stock-items.create');
+    Route::get('/stock-items/{item}/edit', Livewire\Inventory\StockItemForm::class)->name('stock-items.edit');
+    Route::get('/inventory-vouchers/create/{type}', Livewire\Inventory\InventoryVoucherForm::class)->name('inventory-vouchers.create');
+    Route::get('/inventory-vouchers/{voucher}/edit', Livewire\Inventory\InventoryVoucherForm::class)->name('inventory-vouchers.edit');
+
     Route::get('/vouchers/create/{type}', Livewire\Vouchers\VoucherForm::class)->name('vouchers.create');
     Route::get('/vouchers/{voucher}/edit', Livewire\Vouchers\VoucherForm::class)->name('vouchers.edit');
     Route::get('/vouchers/{voucher}/print', VoucherPrintController::class)->name('vouchers.print');
@@ -45,5 +52,7 @@ Route::middleware(['setup', 'auth'])->group(function () {
     Route::get('/reports/balance-sheet', Livewire\Reports\BalanceSheet::class)->name('reports.balance-sheet');
     Route::get('/reports/outstanding/{kind}', Livewire\Reports\Outstanding::class)->whereIn('kind', ['receivables', 'payables'])->name('reports.outstanding');
     Route::get('/reports/vat-return', Livewire\Reports\VatReturn::class)->name('reports.vat-return');
+    Route::get('/reports/stock-summary', Livewire\Reports\StockSummary::class)->name('reports.stock-summary');
+    Route::get('/reports/stock-item/{item}', Livewire\Reports\StockItemRegister::class)->name('reports.stock-item');
     Route::get('/reports/ledger/{ledger}', Livewire\Reports\LedgerStatement::class)->name('reports.ledger');
 });
