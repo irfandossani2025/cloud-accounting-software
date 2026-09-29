@@ -71,6 +71,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-masters', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
         Gate::define('reconcile', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
         Gate::define('cancel-vouchers', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
+        Gate::define('einvoice', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant));
         Gate::define('enter-vouchers', fn (User $user) => $user->hasRole(Role::Admin, Role::Accountant, Role::DataEntry));
         Gate::define('alter-voucher', fn (User $user, Voucher $voucher) => $user->hasRole(Role::Admin, Role::Accountant)
             || ($user->hasRole(Role::DataEntry) && $voucher->created_by === $user->id));

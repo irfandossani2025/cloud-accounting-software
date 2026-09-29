@@ -53,6 +53,25 @@
                     @foreach ($currencies as $c)<option value="{{ $c->id }}">{{ $c->code }}</option>@endforeach
                 </select>
             </div>
+            @if ($isCreditNote)
+                <div class="sm:col-span-2">
+                    <label class="label">Original invoice</label>
+                    <select wire:model="original_voucher_id" class="input">
+                        <option value="">— Select invoice —</option>
+                        @foreach ($originalInvoices as $inv)
+                            <option value="{{ $inv->id }}">{{ $inv->number }} · {{ $inv->date->format('d-M-Y') }} · {{ \App\Support\Money::format($inv->total) }}</option>
+                        @endforeach
+                    </select>
+                    @error('original_voucher_id') <p class="error">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="label">Reason</label>
+                    <select wire:model="issuance_reason" class="input">
+                        <option value="">—</option>
+                        @foreach (\App\Support\PintOm::ISSUANCE_REASONS as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach
+                    </select>
+                </div>
+            @endif
             @if ($currency)
                 <div>
                     <label class="label">Rate (OMR per {{ $currency->code }})</label>
@@ -185,4 +204,66 @@
             @endif
         </div>
     </form>
+
+    @if ($showEinvoice)
+        @php $e = $einvoice; @endphp
+        <section class="card mt-4 p-4" id="einvoice">
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 class="font-semibold">E-invoice (Fawtara)</h2>
+                @php
+                    [$label, $class] = match ($e?->status) {
+                        \App\Models\Einvoice::ACCEPTED => ['Accepted', 'bg-green-100 text-green-800'],
+                        \App\Models\Einvoice::SUBMITTED => ['Submitted, awaiting outcome', 'bg-blue-100 text-blue-800'],
+                        \App\Models\Einvoice::REJECTED => ['Rejected: correct and generate again', 'bg-red-100 text-red-800'],
+                        \App\Models\Einvoice::DRAFT => [$e->xml ? 'XML ready to submit' : 'Changed since generated: generate again', 'bg-amber-100 text-amber-800'],
+                        default => ['Not generated', 'bg-slate-100 text-slate-600'],
+                    };
+                @endphp
+                <span class="rounded px-2 py-0.5 text-xs {{ $class }}">{{ $label }}</span>
+            </div>
+
+            @if ($e)
+                <dl class="mb-3 grid gap-x-6 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
+                    <div><dt class="inline font-semibold">UUID:</dt> <dd class="inline font-mono">{{ $e->uuid }}</dd></div>
+                    <div><dt class="inline font-semibold">Kind:</dt> <dd class="inline">{{ str_starts_with($e->transaction_type, '1') ? 'Full tax invoice (B2B)' : 'Simplified tax invoice (B2C)' }}</dd></div>
+                    @if ($e->generated_at)<div><dt class="inline font-semibold">Generated:</dt> <dd class="inline">{{ $e->generated_at->format('d-M-Y H:i') }}</dd></div>@endif
+                    @if ($e->submitted_at)<div><dt class="inline font-semibold">Submitted:</dt> <dd class="inline">{{ $e->submitted_at->format('d-M-Y H:i') }} {{ $e->provider_reference ? '· ref '.$e->provider_reference : '' }}</dd></div>@endif
+                    @if ($e->message)<div class="sm:col-span-2"><dt class="inline font-semibold">Provider message:</dt> <dd class="inline">{{ $e->message }}</dd></div>@endif
+                </dl>
+            @endif
+
+            @if ($einvoiceProblems)
+                <div class="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div class="mb-1 font-semibold">Fix these before generating:</div>
+                    <ul class="list-disc space-y-0.5 pl-5">
+                        @foreach ($einvoiceProblems as $problem)
+                            <li>{{ $problem['message'] }} @if ($problem['fix'])<a href="{{ $problem['fix'] }}" wire:navigate class="font-semibold underline">Fix</a>@endif <span class="text-xs text-amber-700">({{ $problem['rule'] }})</span></li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+            @error('einvoice') <p class="error mb-2 text-sm">{{ $message }}</p> @enderror
+
+            @can('einvoice')
+                <div class="flex flex-wrap items-end gap-2">
+                    @if (! $e?->isLocked())
+                        <button type="button" wire:click="generateEinvoice" class="btn-primary" @disabled($einvoiceProblems)>Generate e-invoice XML</button>
+                    @endif
+                    @if ($e?->xml)
+                        <a href="{{ route('einvoices.xml', $e) }}" class="btn-secondary">Download XML</a>
+                    @endif
+                    @if ($e?->status === \App\Models\Einvoice::DRAFT && $e->xml)
+                        <input wire:model="einvoiceReference" class="input w-48" placeholder="Provider reference (optional)">
+                        <button type="button" wire:click="markEinvoiceSubmitted" wire:confirm="Mark as submitted to the service provider? After this the invoice can no longer be altered or cancelled." class="btn-secondary">Mark as submitted</button>
+                    @endif
+                    @if ($e?->status === \App\Models\Einvoice::SUBMITTED)
+                        <input wire:model="einvoiceMessage" class="input w-64" placeholder="Provider message (optional)">
+                        <button type="button" wire:click="markEinvoiceOutcome(true)" class="btn-secondary">Accepted</button>
+                        <button type="button" wire:click="markEinvoiceOutcome(false)" class="btn-danger">Rejected</button>
+                    @endif
+                </div>
+                <p class="mt-2 text-xs text-slate-500">Upload the XML in your accredited service provider's portal, then record it here. Submitted e-invoices are final; correct them with a credit note.</p>
+            @endcan
+        </section>
+    @endif
 </div>

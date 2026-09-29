@@ -13,6 +13,7 @@ use App\Models\StockItem;
 use App\Models\Unit;
 use App\Support\Money;
 use App\Support\PeriodLock;
+use App\Support\PintOm;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -47,6 +48,14 @@ class StockItemForm extends Component
 
     public bool $is_active = true;
 
+    public string $item_type = 'G';
+
+    public string $hs_code = '';
+
+    public string $isic_code = '';
+
+    public string $exemption_code = '';
+
     /** @var list<array{godown_id: int|string|null, quantity: string, rate: string}> */
     public array $openings = [];
 
@@ -72,6 +81,10 @@ class StockItemForm extends Component
             $this->{$field} = (string) $this->item->{$field};
         }
         $this->vat_category = $this->item->vat_category?->value ?? '';
+        $this->item_type = (string) ($this->item->item_type ?: 'G');
+        $this->hs_code = (string) $this->item->hs_code;
+        $this->isic_code = (string) $this->item->isic_code;
+        $this->exemption_code = (string) $this->item->exemption_code;
         $this->is_active = $this->item->is_active;
         $this->openings = $this->item->openings->map(fn ($o) => [
             'godown_id' => $o->godown_id,
@@ -102,6 +115,10 @@ class StockItemForm extends Component
             'sales_rate' => $amount,
             'purchase_rate' => $amount,
             'reorder_level' => $amount,
+            'item_type' => ['required', Rule::in(array_keys(PintOm::ITEM_TYPES))],
+            'hs_code' => ['nullable', 'digits:12', fn ($a, $v, $fail) => $v && ! PintOm::hsDescription($v) ? $fail('Not in the official Oman HS code list.') : null],
+            'isic_code' => ['nullable', 'digits:6', fn ($a, $v, $fail) => $v && ! PintOm::isicDescription($v) ? $fail('Not in the official ISIC code list.') : null],
+            'exemption_code' => ['nullable', Rule::in(array_merge(array_keys(PintOm::ZERO_RATING), array_keys(PintOm::EXEMPTION)))],
             'openings.*.godown_id' => 'nullable|exists:godowns,id',
             'openings.*.quantity' => $amount,
             'openings.*.rate' => $amount,
@@ -142,6 +159,10 @@ class StockItemForm extends Component
                 'purchase_rate' => $this->purchase_rate !== '' ? $this->purchase_rate : null,
                 'reorder_level' => $this->reorder_level !== '' ? $this->reorder_level : null,
                 'is_active' => $this->is_active,
+                'item_type' => $this->item_type,
+                'hs_code' => $this->hs_code ?: null,
+                'isic_code' => $this->isic_code ?: null,
+                'exemption_code' => $this->exemption_code ?: null,
             ])->save();
 
             $item->openings()->delete();

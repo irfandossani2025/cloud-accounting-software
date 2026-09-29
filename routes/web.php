@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\CodeSearchController;
 use App\Http\Controllers\VoucherPrintController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Livewire;
+use App\Models\Einvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +30,16 @@ Route::middleware(['setup', 'auth', EnsureUserIsActive::class])->group(function 
     Route::get('/menu/{menu}', Livewire\Gateway::class)->name('gateway.menu');
     Route::get('/account/password', Livewire\Admin\ChangePassword::class)->name('password.edit');
     Route::get('/vouchers/{voucher}/print', VoucherPrintController::class)->name('vouchers.print');
+    Route::get('/codes/{list}', CodeSearchController::class)->whereIn('list', ['hs', 'isic'])->name('codes.search');
+    Route::get('/einvoices', Livewire\Reports\EInvoiceRegister::class)->name('einvoices.index');
+    Route::get('/einvoices/{einvoice}/xml', function (Einvoice $einvoice) {
+        abort_unless($einvoice->xml, 404);
+
+        return response($einvoice->xml, 200, [
+            'Content-Type' => 'application/xml; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="'.preg_replace('/[^A-Za-z0-9_-]+/', '-', $einvoice->voucher->number).'-'.$einvoice->uuid.'.xml"',
+        ]);
+    })->name('einvoices.xml');
 
     Route::get('/reports/day-book', Livewire\Reports\DayBook::class)->name('reports.day-book');
     Route::get('/reports/trial-balance', Livewire\Reports\TrialBalance::class)->name('reports.trial-balance');

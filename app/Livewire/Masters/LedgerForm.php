@@ -11,6 +11,7 @@ use App\Models\Ledger;
 use App\Services\VoucherService;
 use App\Support\Money;
 use App\Support\PeriodLock;
+use App\Support\PintOm;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -62,6 +63,32 @@ class LedgerForm extends Component
 
     public string $iban = '';
 
+    public string $street = '';
+
+    public string $additional_street = '';
+
+    public string $po_box = '';
+
+    public string $city = '';
+
+    public string $postal_code = '';
+
+    public string $country_subdivision = '';
+
+    public string $party_id_scheme = '';
+
+    public string $party_id = '';
+
+    public string $item_type = '';
+
+    public string $hs_code = '';
+
+    public string $isic_code = '';
+
+    public string $exemption_code = '';
+
+    public string $country_code = 'OM';
+
     public function mount(?Ledger $ledger = null): void
     {
         $this->ledger = $ledger?->exists ? $ledger : null;
@@ -70,7 +97,9 @@ class LedgerForm extends Component
             return;
         }
 
-        foreach (['name', 'name_ar', 'alias', 'address', 'vatin', 'cr_number', 'phone', 'email', 'bank_name', 'bank_account_no', 'iban'] as $field) {
+        foreach (['name', 'name_ar', 'alias', 'address', 'vatin', 'cr_number', 'phone', 'email', 'bank_name', 'bank_account_no', 'iban',
+            'street', 'additional_street', 'po_box', 'city', 'postal_code', 'country_code', 'country_subdivision', 'party_id_scheme', 'party_id',
+            'item_type', 'hs_code', 'isic_code', 'exemption_code'] as $field) {
             $this->{$field} = (string) $this->ledger->{$field};
         }
 
@@ -103,10 +132,18 @@ class LedgerForm extends Component
             'tax_role' => ['nullable', Rule::enum(TaxRole::class)],
             'email' => 'nullable|email|max:255',
             'credit_days' => 'nullable|integer|min:0|max:3650',
-            'vatin' => 'nullable|string|max:30',
+            'vatin' => ['nullable', 'regex:/^OM\d{10}$/'],
+            'country_code' => 'required|size:2|alpha',
+            'country_subdivision' => ['nullable', Rule::in(array_keys(PintOm::SUBDIVISIONS))],
+            'party_id_scheme' => ['nullable', 'required_with:party_id', Rule::in(array_keys(PintOm::PARTY_ID_SCHEMES))],
+            'party_id' => 'nullable|string|max:50',
+            'item_type' => ['nullable', Rule::in(array_keys(PintOm::ITEM_TYPES))],
+            'hs_code' => ['nullable', 'digits:12', fn ($a, $v, $fail) => $v && ! PintOm::hsDescription($v) ? $fail('Not in the official Oman HS code list.') : null],
+            'isic_code' => ['nullable', 'digits:6', fn ($a, $v, $fail) => $v && ! PintOm::isicDescription($v) ? $fail('Not in the official ISIC code list.') : null],
+            'exemption_code' => ['nullable', Rule::in(array_merge(array_keys(PintOm::ZERO_RATING), array_keys(PintOm::EXEMPTION)))],
             'currency_id' => 'nullable|exists:currencies,id',
             'opening_fx_amount' => ['nullable', 'regex:/^\d{1,15}(\.\d{1,3})?$/'],
-        ], ['opening_amount.regex' => 'Enter an amount with up to 3 decimals.']);
+        ], ['vatin.regex' => 'The VATIN must be "OM" followed by 10 digits.', 'opening_amount.regex' => 'Enter an amount with up to 3 decimals.']);
 
         $group = AccountGroup::query()->findOrFail($this->account_group_id);
         $opening = Money::toBaisa($this->opening_amount ?: 0);
@@ -135,6 +172,19 @@ class LedgerForm extends Component
             'vat_rate' => $this->tax_role ? VatCategory::STANDARD_RATE : null,
             'address' => $this->address ?: null,
             'vatin' => $this->vatin ?: null,
+            'street' => $this->street ?: null,
+            'additional_street' => $this->additional_street ?: null,
+            'po_box' => $this->po_box ?: null,
+            'city' => $this->city ?: null,
+            'postal_code' => $this->postal_code ?: null,
+            'country_code' => strtoupper($this->country_code ?: 'OM'),
+            'country_subdivision' => $this->country_subdivision ?: null,
+            'party_id_scheme' => $this->party_id ? $this->party_id_scheme : null,
+            'party_id' => $this->party_id ?: null,
+            'item_type' => $group->nature->isRevenue() ? ($this->item_type ?: null) : null,
+            'hs_code' => $group->nature->isRevenue() ? ($this->hs_code ?: null) : null,
+            'isic_code' => $group->nature->isRevenue() ? ($this->isic_code ?: null) : null,
+            'exemption_code' => $group->nature->isRevenue() ? ($this->exemption_code ?: null) : null,
             'cr_number' => $this->cr_number ?: null,
             'phone' => $this->phone ?: null,
             'email' => $this->email ?: null,

@@ -22,3 +22,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/tools/pint-om/.venv
+/tools/pint-om/resources
+/tools/pint-om/resources.zip

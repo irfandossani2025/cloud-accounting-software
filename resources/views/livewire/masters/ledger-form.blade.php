@@ -78,7 +78,7 @@
             @else
                 <div>
                     <label class="label">VAT treatment</label>
-                    <select wire:model="vat_category" class="input">
+                    <select wire:model.live="vat_category" class="input">
                         <option value="">— Not applicable —</option>
                         @foreach (\App\Enums\VatCategory::cases() as $cat)
                             <option value="{{ $cat->value }}">{{ $cat->label() }}</option>
@@ -91,6 +91,7 @@
                 <div>
                     <label class="label">VATIN</label>
                     <input wire:model="vatin" class="input" placeholder="OM1100XXXXXX">
+                    @error('vatin') <p class="error">{{ $message }}</p> @enderror
                 </div>
             @endif
         </section>
@@ -112,6 +113,69 @@
                     <label class="label">Credit period (days)</label><input wire:model="credit_days" class="input" inputmode="numeric">
                     @error('credit_days') <p class="error">{{ $message }}</p> @enderror
                 </div>
+
+                <h3 class="mt-2 text-sm font-semibold text-tally-top sm:col-span-2">Structured address (needed for full tax e-invoices)</h3>
+                <div><label class="label">Street / way &amp; building</label><input wire:model="street" class="input"></div>
+                <div><label class="label">Area</label><input wire:model="additional_street" class="input"></div>
+                <div><label class="label">P.O. Box</label><input wire:model="po_box" class="input"></div>
+                <div><label class="label">City</label><input wire:model="city" class="input"></div>
+                <div><label class="label">Postal code</label><input wire:model="postal_code" class="input"></div>
+                <div class="flex gap-2">
+                    <div class="w-20"><label class="label">Country</label><input wire:model="country_code" class="input uppercase" maxlength="2">@error('country_code') <p class="error">{{ $message }}</p> @enderror</div>
+                    <div class="flex-1">
+                        <label class="label">Location (Oman)</label>
+                        <select wire:model="country_subdivision" class="input">
+                            <option value="">Mainland (default)</option>
+                            @foreach (\App\Support\PintOm::SUBDIVISIONS as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-2 sm:col-span-2">
+                    <div class="w-56">
+                        <label class="label">Buyer ID type</label>
+                        <select wire:model="party_id_scheme" class="input">
+                            <option value="">—</option>
+                            @foreach (\App\Support\PintOm::PARTY_ID_SCHEMES as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach
+                        </select>
+                        @error('party_id_scheme') <p class="error">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="flex-1"><label class="label">Buyer ID</label><input wire:model="party_id" class="input" placeholder="For customers without a VATIN (e.g. CR number)"></div>
+                </div>
+            </section>
+        @endif
+
+        @if ($isRevenue)
+            <section class="grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+                <h2 class="font-semibold sm:col-span-2">E-invoice defaults for lines posted to this ledger</h2>
+                <div>
+                    <label class="label">Goods or services</label>
+                    <select wire:model.live="item_type" class="input">
+                        <option value="">—</option>
+                        @foreach (\App\Support\PintOm::ITEM_TYPES as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="label">Industry (ISIC) code</label>
+                    <x-code-picker list="isic" model="isic_code" placeholder="Type code or words, e.g. consult" />
+                    @error('isic_code') <p class="error">{{ $message }}</p> @enderror
+                </div>
+                @if ($item_type === 'G')
+                    <div>
+                        <label class="label">Oman HS code (12 digits)</label>
+                        <x-code-picker list="hs" model="hs_code" placeholder="Type code or words, e.g. pump" />
+                        @error('hs_code') <p class="error">{{ $message }}</p> @enderror
+                    </div>
+                @endif
+                @if (in_array($vat_category, ['zero_rated', 'exempt'], true))
+                    <div class="sm:col-span-2">
+                        <label class="label">{{ $vat_category === 'exempt' ? 'Exemption reason' : 'Zero-rating reason' }}</label>
+                        <select wire:model="exemption_code" class="input">
+                            <option value="">—</option>
+                            @foreach ($vat_category === 'exempt' ? \App\Support\PintOm::EXEMPTION : \App\Support\PintOm::ZERO_RATING as $code => $label)<option value="{{ $code }}">{{ $code }} · {{ $label }}</option>@endforeach
+                        </select>
+                        @error('exemption_code') <p class="error">{{ $message }}</p> @enderror
+                    </div>
+                @endif
             </section>
         @endif
 
