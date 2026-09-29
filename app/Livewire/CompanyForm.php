@@ -1,0 +1,72 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Models\CompanySetting;
+use Livewire\Attributes\Title;
+use Livewire\Component;
+
+#[Title('Company')]
+class CompanyForm extends Component
+{
+    public string $name = '';
+
+    public string $name_ar = '';
+
+    public string $address = '';
+
+    public string $address_ar = '';
+
+    public string $vatin = '';
+
+    public string $cr_number = '';
+
+    public string $phone = '';
+
+    public string $email = '';
+
+    public string $financial_year_start = '';
+
+    public string $books_begin_from = '';
+
+    public bool $vat_registered = true;
+
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $company = CompanySetting::current();
+
+        foreach (['name', 'name_ar', 'address', 'address_ar', 'vatin', 'cr_number', 'phone', 'email'] as $field) {
+            $this->{$field} = (string) $company->{$field};
+        }
+
+        $this->financial_year_start = $company->financial_year_start->toDateString();
+        $this->books_begin_from = $company->books_begin_from->toDateString();
+        $this->vat_registered = $company->vat_registered;
+    }
+
+    public function save()
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $data = $this->validate([
+            'name' => 'required|string|max:255',
+            'name_ar' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:1000',
+            'address_ar' => 'nullable|string|max:1000',
+            'vatin' => 'nullable|string|max:30',
+            'cr_number' => 'nullable|string|max:50',
+            'phone' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:255',
+            'financial_year_start' => 'required|date',
+            'books_begin_from' => 'required|date|after_or_equal:financial_year_start',
+            'vat_registered' => 'boolean',
+        ]);
+
+        CompanySetting::current()->update(array_map(fn ($v) => $v === '' ? null : $v, $data));
+        session()->flash('status', 'Company details saved.');
+
+        return $this->redirectRoute('gateway', navigate: true);
+    }
+}
