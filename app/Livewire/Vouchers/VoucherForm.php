@@ -2,14 +2,17 @@
 
 namespace App\Livewire\Vouchers;
 
+use App\Enums\BillType;
 use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Enums\VoucherBaseType;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Services\OutstandingService;
 use App\Services\VoucherService;
 use App\Support\Money;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -36,7 +39,14 @@ class VoucherForm extends Component
     {
         if ($voucher?->exists) {
             abort_if($voucher->is_cancelled, 404);
-            $voucher->load('entries');
+
+            if ($voucher->is_invoice) {
+                $this->redirectRoute('invoices.edit', $voucher, navigate: true);
+
+                return;
+            }
+
+            $voucher->load('entries', 'bills');
 
             $this->voucherId = $voucher->id;
             $this->voucher_type_id = $voucher->voucher_type_id;
@@ -48,6 +58,12 @@ class VoucherForm extends Component
                 'side' => Money::toBaisa($e->debit) > 0 ? 'Dr' : 'Cr',
                 'ledger_id' => $e->ledger_id,
                 'amount' => Money::toDecimal(Money::toBaisa($e->debit) ?: Money::toBaisa($e->credit)),
+                'bills' => $voucher->bills->where('ledger_id', $e->ledger_id)->map(fn ($b) => [
+                    'type' => $b->type->value,
+                    'reference' => $b->type === BillType::OnAccount ? '' : $b->reference,
+                    'pending' => '',
+                    'amount' => Money::toDecimal(abs(Money::toBaisa($b->amount))),
+                ])->values()->all(),
             ])->all();
 
             return;
@@ -58,8 +74,8 @@ class VoucherForm extends Component
         // Tally's default first line: the party side of the voucher.
         $first = in_array($type->base_type, [VoucherBaseType::Receipt, VoucherBaseType::Purchase, VoucherBaseType::CreditNote], true) ? 'Cr' : 'Dr';
         $this->rows = [
-            ['side' => $first, 'ledger_id' => null, 'amount' => ''],
-            ['side' => $first === 'Dr' ? 'Cr' : 'Dr', 'ledger_id' => null, 'amount' => ''],
+            ['side' => $first, 'ledger_id' => null, 'amount' => '', 'bills' => []],
+            ['side' => $first === 'Dr' ? 'Cr' : 'Dr', 'ledger_id' => null, 'amount' => '', 'bills' => []],
         ];
     }
 
@@ -72,6 +88,7 @@ class VoucherForm extends Component
             'side' => $difference > 0 ? 'Cr' : 'Dr',
             'ledger_id' => null,
             'amount' => $difference !== 0 ? Money::toDecimal(abs($difference)) : '',
+            'bills' => [],
         ];
     }
 
@@ -90,6 +107,10 @@ class VoucherForm extends Component
 
         [, $index, $field] = $m;
 
+        if ($field === 'ledger_id') {
+            $this->rows[$index]['bills'] = [];
+        }
+
         if ($field === 'ledger_id' && $value && ($this->rows[$index]['amount'] ?? '') === '') {
             [$debit, $credit] = $this->totals();
             $difference = $debit - $credit;
@@ -98,6 +119,58 @@ class VoucherForm extends Component
                 $this->rows[$index]['side'] = $difference > 0 ? 'Cr' : 'Dr';
                 $this->rows[$index]['amount'] = Money::toDecimal(abs($difference));
             }
+        }
+    }
+
+    /**
+     * List the party's pending bills on the opposite side and allocate the line amount to them,
+     * oldest first. Any remainder goes On Account.
+     */
+    public function allocateBills(int $index, OutstandingService $outstanding): void
+    {
+        $row = $this->rows[$index] ?? null;
+        $ledger = $row ? Ledger::query()->find($row['ledger_id']) : null;
+
+        if (! $ledger?->is_bill_wise) {
+            return;
+        }
+
+        $remaining = $this->safeBaisa($row['amount']);
+        $rowSign = $row['side'] === 'Dr' ? 1 : -1;
+        $bills = [];
+
+        $pending = $outstanding->pendingBills($ledger, Carbon::parse($this->date ?: 'today'), $this->voucherId)
+            ->filter(fn ($bill) => $bill->pending * $rowSign < 0 && $bill->type !== BillType::OnAccount);
+
+        foreach ($pending as $bill) {
+            $take = min(abs($bill->pending), $remaining);
+            $remaining -= $take;
+            $bills[] = [
+                'type' => BillType::AgainstRef->value,
+                'reference' => $bill->reference,
+                'pending' => Money::format(abs($bill->pending)).' '.($bill->pending > 0 ? 'Dr' : 'Cr').' · '.$bill->bill_date->format('d-M-y'),
+                'amount' => $take ? Money::toDecimal($take) : '',
+            ];
+        }
+
+        if ($remaining > 0 || ! $bills) {
+            $bills[] = ['type' => BillType::OnAccount->value, 'reference' => '', 'pending' => '', 'amount' => $remaining ? Money::toDecimal($remaining) : ''];
+        }
+
+        $this->rows[$index]['bills'] = $bills;
+    }
+
+    public function addBill(int $index): void
+    {
+        $this->rows[$index]['bills'][] = ['type' => BillType::NewRef->value, 'reference' => '', 'pending' => '', 'amount' => ''];
+    }
+
+    private function safeBaisa(?string $amount): int
+    {
+        try {
+            return Money::toBaisa($amount ?: 0);
+        } catch (\InvalidArgumentException) {
+            return 0;
         }
     }
 
@@ -181,17 +254,36 @@ class VoucherForm extends Component
             return;
         }
 
-        $this->rows[] = ['side' => $signed > 0 ? 'Dr' : 'Cr', 'ledger_id' => $ledger->id, 'amount' => Money::toDecimal(abs($signed))];
+        $this->rows[] = ['side' => $signed > 0 ? 'Dr' : 'Cr', 'ledger_id' => $ledger->id, 'amount' => Money::toDecimal(abs($signed)), 'bills' => []];
     }
 
     public function save(VoucherService $service)
     {
         $this->resetErrorBag();
-        $entries = array_map(fn ($row) => [
-            'ledger_id' => $row['ledger_id'] ?: null,
-            'debit' => $row['side'] === 'Dr' ? $row['amount'] : 0,
-            'credit' => $row['side'] === 'Cr' ? $row['amount'] : 0,
-        ], $this->rows);
+        $entries = array_map(function ($row) {
+            $entry = [
+                'ledger_id' => $row['ledger_id'] ?: null,
+                'debit' => $row['side'] === 'Dr' ? $row['amount'] : 0,
+                'credit' => $row['side'] === 'Cr' ? $row['amount'] : 0,
+            ];
+
+            $bills = array_values(array_filter($row['bills'] ?? [], fn ($b) => $this->safeBaisa($b['amount']) > 0));
+
+            if ($bills) {
+                // Whatever is not allocated goes On Account.
+                $remainder = $this->safeBaisa($row['amount']) - array_sum(array_map(fn ($b) => $this->safeBaisa($b['amount']), $bills));
+                if ($remainder > 0) {
+                    $bills[] = ['type' => BillType::OnAccount->value, 'reference' => '', 'amount' => Money::toDecimal($remainder)];
+                }
+                $entry['bills'] = array_map(fn ($b) => [
+                    'type' => $b['type'],
+                    'reference' => $b['type'] === BillType::OnAccount->value ? 'On Account' : $b['reference'],
+                    'amount' => $b['amount'],
+                ], $bills);
+            }
+
+            return $entry;
+        }, $this->rows);
 
         try {
             $voucher = $service->save([

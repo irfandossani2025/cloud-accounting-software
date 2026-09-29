@@ -6,6 +6,7 @@ use App\Enums\TaxRole;
 use App\Enums\VatCategory;
 use App\Models\AccountGroup;
 use App\Models\Ledger;
+use App\Services\VoucherService;
 use App\Support\Money;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -127,7 +128,9 @@ class LedgerForm extends Component
             unset($attributes['account_group_id']);
         }
 
-        $this->ledger ? $this->ledger->update($attributes) : Ledger::query()->create($attributes);
+        $ledger = $this->ledger ?? new Ledger;
+        $ledger->fill($attributes)->save();
+        app(VoucherService::class)->syncOpeningBill($ledger);
 
         session()->flash('status', "Ledger \"{$this->name}\" saved.");
 

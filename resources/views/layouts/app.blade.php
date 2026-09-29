@@ -35,7 +35,12 @@
 
     <main class="mx-auto max-w-7xl px-4 py-6">
         @if (session('status'))
-            <div class="no-print mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{{ session('status') }}</div>
+            <div class="no-print mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                <span>{{ session('status') }}</span>
+                @if (session('printVoucher'))
+                    <a href="{{ route('vouchers.print', session('printVoucher')) }}" target="_blank" class="font-semibold underline" data-shortcut="Alt+Q">Print it (Alt+Q)</a>
+                @endif
+            </div>
         @endif
 
         {{ $slot }}

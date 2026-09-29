@@ -16,6 +16,8 @@ class Voucher extends Model
         return [
             'date' => DateOnly::class,
             'reference_date' => DateOnly::class,
+            'due_date' => DateOnly::class,
+            'is_invoice' => 'boolean',
             'total' => 'decimal:3',
             'is_cancelled' => 'boolean',
         ];
@@ -34,6 +36,16 @@ class Voucher extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(VoucherEntry::class)->orderBy('sort_order');
+    }
+
+    public function invoiceLines(): HasMany
+    {
+        return $this->hasMany(InvoiceLine::class)->orderBy('sort_order');
+    }
+
+    public function bills(): HasMany
+    {
+        return $this->hasMany(BillAllocation::class);
     }
 
     public function creator(): BelongsTo

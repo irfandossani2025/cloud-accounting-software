@@ -21,7 +21,7 @@
             <ul class="space-y-1 text-sm">
                 @foreach ($voucherTypes as $type)
                     <li>
-                        <a href="{{ route('vouchers.create', $type) }}" wire:navigate
+                        <a href="{{ in_array($type->base_type, \App\Services\InvoiceService::INVOICE_TYPES, true) ? route('invoices.create', $type) : route('vouchers.create', $type) }}" wire:navigate
                            @if ($type->is_reserved) data-shortcut="{{ $type->base_type->shortcut() }}" @endif
                            class="flex justify-between rounded px-2 py-1 hover:bg-brand-50">
                             <span>{{ $type->name }}</span>
@@ -39,6 +39,9 @@
                 <li><a href="{{ route('reports.profit-loss') }}" wire:navigate data-shortcut="Alt+P" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Profit &amp; Loss A/c</span><span class="kbd">Alt+P</span></a></li>
                 <li><a href="{{ route('reports.trial-balance') }}" wire:navigate data-shortcut="Alt+T" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Trial Balance</span><span class="kbd">Alt+T</span></a></li>
                 <li><a href="{{ route('reports.day-book') }}" wire:navigate data-shortcut="Alt+D" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Day Book</span><span class="kbd">Alt+D</span></a></li>
+                <li><a href="{{ route('reports.outstanding', 'receivables') }}" wire:navigate data-shortcut="Alt+R" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Bills Receivable</span><span class="kbd">Alt+R</span></a></li>
+                <li><a href="{{ route('reports.outstanding', 'payables') }}" wire:navigate data-shortcut="Alt+Y" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>Bills Payable</span><span class="kbd">Alt+Y</span></a></li>
+                <li><a href="{{ route('reports.vat-return') }}" wire:navigate data-shortcut="Alt+X" class="flex justify-between rounded px-2 py-1 hover:bg-brand-50"><span>VAT Return (Oman)</span><span class="kbd">Alt+X</span></a></li>
             </ul>
 
             <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Cash &amp; bank today</h2>

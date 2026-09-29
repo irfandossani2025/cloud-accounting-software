@@ -13,14 +13,19 @@
                             @if ($voucher->is_cancelled)
                                 (cancelled)
                             @else
-                                <a href="{{ route('vouchers.edit', $voucher) }}" wire:navigate class="hover:underline">
+                                <a href="{{ $voucher->is_invoice ? route('invoices.edit', $voucher) : route('vouchers.edit', $voucher) }}" wire:navigate class="hover:underline">
                                     {{ $voucher->party?->name ?? $voucher->entries->first()?->ledger->name }}
                                 </a>
                                 @if ($voucher->narration)<div class="text-xs text-slate-400">{{ $voucher->narration }}</div>@endif
                             @endif
                         </td>
                         <td>{{ $voucher->type->name }}</td>
-                        <td>{{ $voucher->number }}</td>
+                        <td class="whitespace-nowrap">
+                            {{ $voucher->number }}
+                            @unless ($voucher->is_cancelled)
+                                <a href="{{ route('vouchers.print', $voucher) }}" target="_blank" class="no-print ml-1 text-xs text-brand-700 hover:underline">print</a>
+                            @endunless
+                        </td>
                         <td class="num">{{ $voucher->is_cancelled ? '' : \App\Support\Money::format($voucher->total) }}</td>
                         <td class="num">{{ $voucher->is_cancelled ? '' : \App\Support\Money::format($voucher->total) }}</td>
                     </tr>

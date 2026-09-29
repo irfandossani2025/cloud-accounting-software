@@ -40,6 +40,11 @@ class Ledger extends Model
         return $this->hasMany(VoucherEntry::class);
     }
 
+    public function bills(): HasMany
+    {
+        return $this->hasMany(BillAllocation::class);
+    }
+
     /** Ledgers under Cash-in-Hand, Bank Accounts or Bank OD A/c. */
     public function scopeCashOrBank(Builder $query): Builder
     {

@@ -3,7 +3,8 @@ import './bootstrap';
 // Tally-style keyboard shortcuts. Links carry data-shortcut="F5", "Ctrl+F8", "Alt+L" etc.
 const keyName = (e) => {
     const parts = [];
-    if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.metaKey) parts.push('Meta');
     if (e.altKey) parts.push('Alt');
     const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
     if (!['Control', 'Alt', 'Meta', 'Shift'].includes(key)) parts.push(e.altKey && e.code.startsWith('Key') ? e.code.slice(3) : key);

@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
+use App\Enums\BillType;
 use App\Enums\VoucherBaseType;
+use App\Models\BillAllocation;
 use App\Models\CompanySetting;
 use App\Models\Ledger;
 use App\Models\Voucher;
 use App\Models\VoucherType;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -17,17 +20,22 @@ class VoucherService
     /**
      * Create or update a voucher.
      *
-     * $data: voucher_type_id, date, reference?, reference_date?, narration?,
-     *        entries: list of [ledger_id, debit, credit, narration?]
+     * $data: voucher_type_id, date, reference?, reference_date?, due_date?, narration?,
+     *        entries: list of [ledger_id, debit, credit, narration?, bills?],
+     *        invoice_lines?: pre-computed lines (see InvoiceService), party_ledger_id?
+     *
+     * bills (optional, bill-wise ledgers only): list of [type, reference, amount, due_date?].
+     * Without it, Sales/Purchase/Credit Note/Debit Note create a New Ref; other vouchers go On Account.
      */
     public function save(array $data, ?Voucher $voucher = null, ?int $userId = null): Voucher
     {
         $type = VoucherType::query()->findOrFail($data['voucher_type_id']);
         $entries = $this->normaliseEntries($data['entries'] ?? []);
+        $ledgers = Ledger::query()->whereIn('id', array_column($entries, 'ledger_id'))->get()->keyBy('id');
 
-        $this->validate($type, $entries, $data);
+        $this->validate($type, $entries, $ledgers, $data);
 
-        return DB::transaction(function () use ($type, $entries, $data, $voucher, $userId) {
+        return DB::transaction(function () use ($type, $entries, $ledgers, $data, $voucher, $userId) {
             $total = array_sum(array_column($entries, 'debit'));
 
             $attributes = [
@@ -35,7 +43,9 @@ class VoucherService
                 'date' => $data['date'],
                 'reference' => $data['reference'] ?? null,
                 'reference_date' => $data['reference_date'] ?? null,
-                'party_ledger_id' => $this->partyLedgerId($type, $entries),
+                'due_date' => $data['due_date'] ?? null,
+                'party_ledger_id' => $data['party_ledger_id'] ?? $this->partyLedgerId($type, $entries, $ledgers),
+                'is_invoice' => isset($data['invoice_lines']),
                 'narration' => $data['narration'] ?? null,
                 'total' => Money::toDecimal($total),
                 'updated_by' => $userId,
@@ -50,6 +60,8 @@ class VoucherService
             } else {
                 $voucher->update($attributes);
                 $voucher->entries()->delete();
+                $voucher->invoiceLines()->delete();
+                $voucher->bills()->delete();
             }
 
             foreach ($entries as $i => $entry) {
@@ -57,10 +69,17 @@ class VoucherService
                     'ledger_id' => $entry['ledger_id'],
                     'debit' => Money::toDecimal($entry['debit']),
                     'credit' => Money::toDecimal($entry['credit']),
+                    'vat_category' => $ledgers[$entry['ledger_id']]->vat_category,
                     'narration' => $entry['narration'],
                     'sort_order' => $i,
                 ]);
             }
+
+            foreach ($data['invoice_lines'] ?? [] as $i => $line) {
+                $voucher->invoiceLines()->create($line + ['sort_order' => $i]);
+            }
+
+            $this->saveBills($voucher, $type, $entries, $ledgers);
 
             return $voucher->load('entries');
         });
@@ -72,10 +91,64 @@ class VoucherService
         DB::transaction(function () use ($voucher) {
             $voucher->update(['is_cancelled' => true, 'total' => 0]);
             $voucher->entries()->delete();
+            $voucher->invoiceLines()->delete();
+            $voucher->bills()->delete();
         });
     }
 
-    /** @return list<array{ledger_id:int, debit:int, credit:int, narration:?string}> */
+    /** Opening bill-wise balance entered on the ledger master. */
+    public function syncOpeningBill(Ledger $ledger): void
+    {
+        $ledger->bills()->whereNull('voucher_id')->delete();
+        $amount = Money::toBaisa($ledger->opening_balance);
+
+        if ($ledger->is_bill_wise && $amount !== 0) {
+            $ledger->bills()->create([
+                'type' => BillType::NewRef,
+                'reference' => 'Opening',
+                'bill_date' => CompanySetting::current()?->books_begin_from ?? now(),
+                'amount' => Money::toDecimal($amount),
+            ]);
+        }
+    }
+
+    private function saveBills(Voucher $voucher, VoucherType $type, array $entries, Collection $ledgers): void
+    {
+        $isInvoiceType = in_array($type->base_type, [VoucherBaseType::Sales, VoucherBaseType::Purchase, VoucherBaseType::CreditNote, VoucherBaseType::DebitNote], true);
+        $defaultReference = in_array($type->base_type, [VoucherBaseType::Purchase, VoucherBaseType::DebitNote], true) && $voucher->reference
+            ? $voucher->reference
+            : $voucher->number;
+
+        foreach ($entries as $entry) {
+            $ledger = $ledgers[$entry['ledger_id']];
+
+            if (! $ledger->is_bill_wise) {
+                continue;
+            }
+
+            $sign = $entry['debit'] > 0 ? 1 : -1;
+            $bills = $entry['bills'] ?? [[
+                'type' => $isInvoiceType ? BillType::NewRef->value : BillType::OnAccount->value,
+                'reference' => $isInvoiceType ? $defaultReference : $voucher->number,
+                'amount' => $entry['debit'] ?: $entry['credit'],
+                'due_date' => $voucher->due_date,
+            ]];
+
+            foreach ($bills as $bill) {
+                BillAllocation::query()->create([
+                    'ledger_id' => $ledger->id,
+                    'voucher_id' => $voucher->id,
+                    'type' => $bill['type'],
+                    'reference' => $bill['reference'],
+                    'bill_date' => $voucher->date,
+                    'due_date' => $bill['due_date'] ?? null,
+                    'amount' => Money::toDecimal($sign * $bill['amount']),
+                ]);
+            }
+        }
+    }
+
+    /** @return list<array{ledger_id:int, debit:int, credit:int, narration:?string, bills:?array}> */
     private function normaliseEntries(array $rows): array
     {
         $entries = [];
@@ -92,18 +165,35 @@ class VoucherService
                 continue;
             }
 
+            $bills = null;
+            if (isset($row['bills'])) {
+                $bills = [];
+                foreach ($row['bills'] as $bill) {
+                    $amount = Money::toBaisa($bill['amount'] ?? 0);
+                    if ($amount !== 0) {
+                        $bills[] = [
+                            'type' => $bill['type'],
+                            'reference' => trim((string) ($bill['reference'] ?? '')),
+                            'amount' => $amount,
+                            'due_date' => ($bill['due_date'] ?? null) ?: null,
+                        ];
+                    }
+                }
+            }
+
             $entries[] = [
                 'ledger_id' => (int) $row['ledger_id'],
                 'debit' => $debit,
                 'credit' => $credit,
                 'narration' => $row['narration'] ?? null,
+                'bills' => $bills,
             ];
         }
 
         return $entries;
     }
 
-    private function validate(VoucherType $type, array $entries, array $data): void
+    private function validate(VoucherType $type, array $entries, Collection $ledgers, array $data): void
     {
         $errors = [];
 
@@ -135,23 +225,53 @@ class VoucherService
             $errors['entries'] = 'Debit total ('.Money::format($debits).') does not equal credit total ('.Money::format($credits).').';
         }
 
-        $ledgers = Ledger::query()->whereIn('id', array_column($entries, 'ledger_id'))->get()->keyBy('id');
-
         if ($ledgers->count() !== count(array_unique(array_column($entries, 'ledger_id')))) {
             $errors['entries'] = 'One or more ledgers do not exist.';
         } elseif (! isset($errors['entries'])) {
-            if ($message = $this->typeRuleViolation($type->base_type, $entries, $ledgers)) {
-                $errors['entries'] = $message;
-            }
+            $errors['entries'] = $this->typeRuleViolation($type->base_type, $entries, $ledgers)
+                ?? $this->billViolation($entries, $ledgers);
         }
+
+        $errors = array_filter($errors);
 
         if ($errors) {
             throw ValidationException::withMessages($errors);
         }
     }
 
+    private function billViolation(array $entries, Collection $ledgers): ?string
+    {
+        foreach ($entries as $entry) {
+            if ($entry['bills'] === null) {
+                continue;
+            }
+
+            $ledger = $ledgers[$entry['ledger_id']];
+            $amount = $entry['debit'] ?: $entry['credit'];
+            $allocated = array_sum(array_column($entry['bills'], 'amount'));
+
+            if ($allocated !== $amount) {
+                return "Bill allocations for {$ledger->name} (".Money::format($allocated).') must equal the amount ('.Money::format($amount).').';
+            }
+
+            foreach ($entry['bills'] as $bill) {
+                if (! BillType::tryFrom($bill['type'])) {
+                    return 'Invalid bill type.';
+                }
+                if ($bill['type'] !== BillType::OnAccount->value && $bill['reference'] === '') {
+                    return "Enter a bill reference for {$ledger->name}.";
+                }
+                if ($bill['amount'] < 0) {
+                    return 'Bill amounts cannot be negative.';
+                }
+            }
+        }
+
+        return null;
+    }
+
     /** Tally's per-voucher-type ledger rules. */
-    private function typeRuleViolation(VoucherBaseType $base, array $entries, $ledgers): ?string
+    private function typeRuleViolation(VoucherBaseType $base, array $entries, Collection $ledgers): ?string
     {
         $isCashBank = fn (array $e) => $ledgers[$e['ledger_id']]->isCashOrBank();
 
@@ -167,7 +287,7 @@ class VoucherService
     }
 
     /** The first non cash/bank, non tax ledger on the "party" side, used for listings and outstanding reports. */
-    private function partyLedgerId(VoucherType $type, array $entries): ?int
+    private function partyLedgerId(VoucherType $type, array $entries, Collection $ledgers): ?int
     {
         $side = match ($type->base_type) {
             VoucherBaseType::Sales, VoucherBaseType::DebitNote, VoucherBaseType::Payment => 'debit',
@@ -178,8 +298,6 @@ class VoucherService
         if ($side === null) {
             return null;
         }
-
-        $ledgers = Ledger::query()->whereIn('id', array_column($entries, 'ledger_id'))->get()->keyBy('id');
 
         foreach ($entries as $entry) {
             $ledger = $ledgers[$entry['ledger_id']];

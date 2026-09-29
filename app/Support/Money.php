@@ -77,4 +77,55 @@ final class Money
 
         return $sign * intdiv(abs($numerator) + 5000, 10000);
     }
+
+    /** Quantity (up to 3 decimals) × rate in baisa, rounded half up to the nearest baisa. */
+    public static function multiply(int $rateBaisa, string|int|float $quantity): int
+    {
+        $qtyMilli = self::toBaisa($quantity); // same 3-decimal scale
+        $product = $rateBaisa * $qtyMilli;
+        $sign = $product < 0 ? -1 : 1;
+
+        return $sign * intdiv(abs($product) + 500, 1000);
+    }
+
+    /** "Two Hundred Ten Omani Rials and Five Hundred Baisa Only" */
+    public static function inWords(int $baisa): string
+    {
+        $baisa = abs($baisa);
+        $rials = intdiv($baisa, self::SCALE);
+        $fraction = $baisa % self::SCALE;
+
+        $words = $rials > 0 ? self::numberToWords($rials).' Omani Rial'.($rials === 1 ? '' : 's') : '';
+
+        if ($fraction > 0) {
+            $words .= ($words ? ' and ' : '').self::numberToWords($fraction).' Baisa';
+        }
+
+        return ($words ?: 'Zero Omani Rials').' Only';
+    }
+
+    private static function numberToWords(int $n): string
+    {
+        $ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+            'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        if ($n < 20) {
+            return $ones[$n];
+        }
+        if ($n < 100) {
+            return trim($tens[intdiv($n, 10)].' '.$ones[$n % 10]);
+        }
+        if ($n < 1000) {
+            return trim($ones[intdiv($n, 100)].' Hundred '.self::numberToWords($n % 100));
+        }
+
+        foreach ([1_000_000_000 => 'Billion', 1_000_000 => 'Million', 1000 => 'Thousand'] as $size => $name) {
+            if ($n >= $size) {
+                return trim(self::numberToWords(intdiv($n, $size)).' '.$name.' '.self::numberToWords($n % $size));
+            }
+        }
+
+        return '';
+    }
 }

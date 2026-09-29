@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\VoucherPrintController;
 use App\Livewire;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,10 +35,15 @@ Route::middleware(['setup', 'auth'])->group(function () {
 
     Route::get('/vouchers/create/{type}', Livewire\Vouchers\VoucherForm::class)->name('vouchers.create');
     Route::get('/vouchers/{voucher}/edit', Livewire\Vouchers\VoucherForm::class)->name('vouchers.edit');
+    Route::get('/vouchers/{voucher}/print', VoucherPrintController::class)->name('vouchers.print');
+    Route::get('/invoices/create/{type}', Livewire\Vouchers\InvoiceForm::class)->name('invoices.create');
+    Route::get('/invoices/{voucher}/edit', Livewire\Vouchers\InvoiceForm::class)->name('invoices.edit');
 
     Route::get('/reports/day-book', Livewire\Reports\DayBook::class)->name('reports.day-book');
     Route::get('/reports/trial-balance', Livewire\Reports\TrialBalance::class)->name('reports.trial-balance');
     Route::get('/reports/profit-loss', Livewire\Reports\ProfitLoss::class)->name('reports.profit-loss');
     Route::get('/reports/balance-sheet', Livewire\Reports\BalanceSheet::class)->name('reports.balance-sheet');
+    Route::get('/reports/outstanding/{kind}', Livewire\Reports\Outstanding::class)->whereIn('kind', ['receivables', 'payables'])->name('reports.outstanding');
+    Route::get('/reports/vat-return', Livewire\Reports\VatReturn::class)->name('reports.vat-return');
     Route::get('/reports/ledger/{ledger}', Livewire\Reports\LedgerStatement::class)->name('reports.ledger');
 });

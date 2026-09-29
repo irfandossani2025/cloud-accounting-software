@@ -2,11 +2,14 @@
     <x-page-header :title="($voucher ? 'Alter ' : '').$type->name" :subtitle="'No. '.$nextNumber" :back="route('gateway')">
         @unless ($voucher)
             @foreach ($types as $t)
-                <a href="{{ route('vouchers.create', $t) }}" wire:navigate data-shortcut="{{ $t->base_type->shortcut() }}"
+                <a href="{{ in_array($t->base_type, \App\Services\InvoiceService::INVOICE_TYPES, true) ? route('invoices.create', $t) : route('vouchers.create', $t) }}" wire:navigate data-shortcut="{{ $t->base_type->shortcut() }}"
                    class="rounded px-2 py-1 text-xs {{ $t->id === $type->id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
                     {{ $t->base_type->shortcut() }} {{ $t->name }}
                 </a>
             @endforeach
+            @if (in_array($type->base_type, \App\Services\InvoiceService::INVOICE_TYPES, true))
+                <a href="{{ route('invoices.create', $type) }}" wire:navigate data-shortcut="Ctrl+H" class="btn-secondary">Invoice mode <span class="kbd">Ctrl+H</span></a>
+            @endif
         @endunless
     </x-page-header>
 
@@ -70,6 +73,42 @@
                                 @endif
                             </td>
                         </tr>
+                        @if ($row['ledger_id'] && $ledgers->firstWhere('id', (int) $row['ledger_id'])?->is_bill_wise)
+                            <tr wire:key="bills-{{ $i }}" class="bg-slate-50/60">
+                                <td></td>
+                                <td colspan="4" class="pb-3">
+                                    <div class="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                        <span class="font-semibold">Bill-wise details</span>
+                                        <button type="button" wire:click="allocateBills({{ $i }})" class="rounded border border-slate-300 bg-white px-2 py-0.5 hover:bg-slate-50">Allocate against pending bills</button>
+                                        <button type="button" wire:click="addBill({{ $i }})" class="rounded border border-slate-300 bg-white px-2 py-0.5 hover:bg-slate-50">+ Reference</button>
+                                        @if (! $row['bills'])<span class="text-slate-400">Not allocated: saved as {{ in_array($type->base_type->value, ['sales', 'purchase', 'credit_note', 'debit_note']) ? 'a New Ref for this voucher' : 'On Account' }}.</span>@endif
+                                    </div>
+                                    @if ($row['bills'])
+                                        <table class="w-full max-w-2xl text-xs">
+                                            <tr class="text-slate-500"><td class="w-28">Type</td><td>Reference</td><td>Pending</td><td class="w-32 text-right">Amount</td></tr>
+                                            @foreach ($row['bills'] as $b => $bill)
+                                                <tr wire:key="bill-{{ $i }}-{{ $b }}">
+                                                    <td class="py-0.5 pr-2">
+                                                        <select wire:model.live="rows.{{ $i }}.bills.{{ $b }}.type" class="input py-0.5 text-xs">
+                                                            @foreach (\App\Enums\BillType::cases() as $bt)
+                                                                <option value="{{ $bt->value }}">{{ $bt->label() }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </td>
+                                                    <td class="py-0.5 pr-2">
+                                                        @if ($bill['type'] !== 'on_account')
+                                                            <input wire:model.blur="rows.{{ $i }}.bills.{{ $b }}.reference" class="input py-0.5 text-xs">
+                                                        @endif
+                                                    </td>
+                                                    <td class="py-0.5 pr-2 whitespace-nowrap text-slate-500">{{ $bill['pending'] }}</td>
+                                                    <td class="py-0.5"><input wire:model.blur="rows.{{ $i }}.bills.{{ $b }}.amount" class="input py-0.5 text-right font-mono text-xs"></td>
+                                                </tr>
+                                            @endforeach
+                                        </table>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endif
                     @endforeach
                 </tbody>
                 <tfoot>
@@ -98,7 +137,12 @@
         </div>
 
         <div class="mt-4 flex justify-between">
-            <button class="btn-primary" data-shortcut="Ctrl+A" wire:loading.attr="disabled">Accept <span class="kbd">Ctrl+A</span></button>
+            <div class="flex gap-2">
+                <button class="btn-primary" data-shortcut="Ctrl+A" wire:loading.attr="disabled">Accept <span class="kbd">Ctrl+A</span></button>
+                @if ($voucher)
+                    <a href="{{ route('vouchers.print', $voucher) }}" target="_blank" class="btn-secondary">Print</a>
+                @endif
+            </div>
             @if ($voucher)
                 <button type="button" wire:click="cancelVoucher" wire:confirm="Cancel this voucher? Its number is kept but it no longer affects the books." class="btn-danger">Cancel voucher</button>
             @endif
