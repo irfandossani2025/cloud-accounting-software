@@ -40,6 +40,12 @@ Server limits this project is built around: **PHP 8.2**, **MariaDB 10.1**, **Nod
 
 ## Every update
 
+**Live setup (accounts.techittechnologies.com):** Laravel Toolkit → *Deployment* is set to **Automatic**, and GitHub has a
+webhook to Plesk, so every push to `main` deploys by itself (maintenance mode, git pull, `composer install`).
+Step 5 *Install package.json dependencies* must stay **off**: the server's Node 17.9 cannot run the build tools, and the
+built assets are committed. The deployment script (step 6) needs SSH, so **migrations do not run automatically**: after a
+push that adds a migration, run `migrate --force` in Laravel Toolkit → *Artisan*.
+
 1. On your Mac: `npm run build` (if views/CSS/JS changed), `php artisan test`, then commit and push to `main`.
 2. Plesk pulls automatically. If `composer.json` changed, run Composer again (step 5).
 3. If there are new migrations, run `php artisan migrate --force`. Use Laravel Toolkit → *Artisan*, or put it in Plesk Git →
