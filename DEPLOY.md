@@ -17,6 +17,8 @@ Server limits this project is built around: **PHP 8.2**, **MariaDB 10.1**, **Nod
      Plesk's SSH deploy key to GitHub under *Settings → Deploy keys*.
    - Deployment mode: **Automatic**. Target directory: `httpdocs`.
 4. **Document root**: Plesk → *Hosting Settings* → document root **`httpdocs/public`**.
+   With **Laravel Toolkit**, steps 3–5 are one action: *Laravel → Install Application → Install from remote repository*.
+   It clones the repo, runs Composer, sets the document root and generates `APP_KEY`.
 5. **Composer dependencies** (pick whichever your Plesk offers):
    - **Laravel Toolkit** (preferred): add the application. It runs `composer install` and artisan commands from the web page.
    - **PHP Composer** extension: open `composer.json` and click *Install* (use the *no-dev* option).
@@ -25,7 +27,10 @@ Server limits this project is built around: **PHP 8.2**, **MariaDB 10.1**, **Nod
    - `APP_URL` = your domain.
    - `APP_KEY`: generate it on your Mac with `php artisan key:generate --show` and paste the value.
    - `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`.
-   - `SETUP_TOKEN`: any long random string.
+   - `SETUP_TOKEN`: any long random string (optional; `/setup` locks itself once an administrator exists).
+   - Keep `SESSION_DRIVER=file` and `CACHE_STORE=file` so the installer works before the tables exist.
+   - If the database password contains `#`, `$` or spaces, wrap it in single quotes: `DB_PASSWORD='...'`.
+     Simplest is a letters-and-numbers password for the database user.
 7. **Permissions**: `storage/` and `bootstrap/cache/` must be writable by the site's system user (File Manager → *Change Permissions*: 775).
 8. **Install**: open `https://your-domain/setup?token=<SETUP_TOKEN>`:
    1. click **Install database** (creates the tables);
