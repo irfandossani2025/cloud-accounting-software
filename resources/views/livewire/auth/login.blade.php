@@ -1,5 +1,5 @@
 <div class="mx-auto mt-16 max-w-sm">
-    <form wire:submit="login" class="card space-y-4 p-6">
+    <form data-enter-submits wire:submit="login" class="card space-y-4 p-6">
         <h1 class="text-lg font-semibold">Log in</h1>
         <div>
             <label class="label">Email</label>

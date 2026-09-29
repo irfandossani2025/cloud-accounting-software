@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherType;
 use App\Services\VoucherService;
+use App\Support\GatewayMenu;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -43,7 +44,21 @@ class AdministrationTest extends TestCase
 
         $this->actingAs($viewer)->get(route('reports.trial-balance'))->assertOk();
         $this->actingAs($viewer)->get(route('vouchers.create', $journal))->assertForbidden();
-        $this->actingAs($viewer)->get(route('gateway'))->assertOk()->assertSee('Your role can view reports only.');
+        // Tally-style Gateway: each role sees only the menus it can use.
+        $this->actingAs($viewer)->get(route('gateway'))->assertOk()
+            ->assertSeeText('Balance Sheet')->assertSeeText('Chart of Accounts')
+            ->assertDontSee('data-hotkey="V"', false)->assertDontSee('data-hotkey="C"', false);
+        $this->actingAs($viewer)->get(route('gateway.menu', 'vouchers'))->assertForbidden();
+        $this->actingAs($clerk)->get(route('gateway.menu', 'vouchers'))->assertOk()->assertSeeText('Journal');
+        $this->actingAs($clerk)->get(route('gateway.menu', 'create'))->assertForbidden();
+        $this->actingAs($accountant)->get(route('gateway.menu', 'create'))->assertOk()->assertSeeText('Ledger');
+        $this->actingAs($accountant)->get(route('gateway.menu', 'admin'))->assertOk()->assertDontSeeText('Users & Roles');
+        $this->actingAs($this->admin)->get(route('gateway.menu', 'admin'))->assertOk()->assertSeeText('Users & Roles');
+        foreach (array_keys(GatewayMenu::TITLES) as $menu) {
+            if (! in_array($menu, ['create', 'alter', 'vouchers'], true)) {
+                $this->actingAs($viewer)->get(route('gateway.menu', $menu))->assertOk();
+            }
+        }
 
         $this->actingAs($clerk)->get(route('vouchers.create', $journal))->assertOk();
         $this->actingAs($clerk)->get(route('ledgers.create'))->assertForbidden();

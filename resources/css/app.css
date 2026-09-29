@@ -14,20 +14,47 @@
     --color-brand-600: #1f6f68;
     --color-brand-700: #185a54;
     --color-brand-800: #134843;
+
+    /* Tally-style palette */
+    --color-tally-top: #1d5b6b;
+    --color-tally-strip: #e4eef1;
+    --color-tally-bg: #f2f6f7;
+    --color-tally-line: #c9d8dd;
+    --color-tally-accent: #f6c945;
+    --color-tally-select: #fbe29a;
+}
+
+[x-cloak] { display: none !important; }
+
+@layer components {
+    .tally-topmenu { @apply flex items-center border-r border-white/10 px-3 whitespace-nowrap hover:bg-white/10; }
+    .tally-topmenu u { @apply font-bold text-tally-accent no-underline; }
+    .tally-panel { @apply rounded border border-tally-line bg-white p-4 shadow-sm; }
+    .tally-caption { @apply text-[10px] font-semibold tracking-wider text-slate-500 uppercase; }
+    .tally-menu { @apply overflow-hidden rounded border border-tally-line bg-white shadow-sm; }
+    .tally-menu-title { @apply bg-tally-top px-4 py-2 text-center text-sm font-semibold tracking-wide text-white; }
+    .tally-section { @apply mt-2 px-6 pb-0.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase first:mt-0; }
+    .tally-item { @apply flex items-center justify-between gap-3 px-6 py-[3px] text-[15px] text-slate-800; }
+    .tally-item-active { @apply bg-tally-select; }
+    .tally-hotkey { @apply font-bold text-red-700 underline decoration-red-700/60 underline-offset-2; }
+    .tally-fbutton { @apply flex items-center gap-2 px-2 py-1 text-left text-slate-700 hover:bg-tally-select; }
+    .tally-fkey { @apply w-14 shrink-0 font-mono text-[11px] font-bold text-tally-top; }
 }
 
 @layer components {
-    .card { @apply rounded-lg border border-slate-200 bg-white shadow-sm; }
-    .btn { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-50; }
-    .btn-primary { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-50 bg-brand-600 text-white hover:bg-brand-700; }
-    .btn-secondary { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-50 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
-    .btn-danger { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-50 bg-red-600 text-white hover:bg-red-700; }
-    .input { @apply block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 focus:outline-none; }
-    .label { @apply mb-1 block text-xs font-semibold tracking-wide text-slate-600 uppercase; }
+    .card { @apply rounded border border-tally-line bg-white shadow-sm; }
+    .btn { @apply inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition disabled:opacity-50; }
+    .btn-primary { @apply inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition disabled:opacity-50 bg-tally-top text-white hover:bg-brand-800; }
+    .btn-secondary { @apply inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition disabled:opacity-50 border border-tally-line bg-white text-slate-700 hover:bg-tally-strip; }
+    .btn-danger { @apply inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition disabled:opacity-50 bg-red-600 text-white hover:bg-red-700; }
+    /* The field being edited is highlighted in yellow, as in Tally. */
+    .input { @apply block w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-tally-top focus:bg-[#fff6d5] focus:ring-1 focus:ring-tally-top focus:outline-none; }
+    .label { @apply mb-1 block text-[11px] font-semibold tracking-wide text-slate-600 uppercase; }
     .error { @apply mt-1 text-xs text-red-600; }
     .table { @apply w-full text-sm; }
-    .table th { @apply border-b border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase; }
-    .table td { @apply border-b border-slate-100 px-3 py-1.5; }
+    .table th { @apply border-b border-tally-line bg-tally-strip px-3 py-1.5 text-left text-[11px] font-bold tracking-wide text-tally-top uppercase; }
+    .table td { @apply border-b border-slate-100 px-3 py-1; }
+    .table tbody tr:hover td { @apply bg-[#fdf3cf]; }
     .num { @apply text-right font-mono tabular-nums whitespace-nowrap; }
     .kbd { @apply rounded border border-slate-300 bg-slate-100 px-1 font-mono text-[10px] text-slate-500; }
 }

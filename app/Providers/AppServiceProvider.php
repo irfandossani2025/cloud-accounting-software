@@ -6,8 +6,12 @@ use App\Database\LegacyMariaDbConnection;
 use App\Enums\Role;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Models\CompanySetting;
+use App\Models\Ledger;
+use App\Models\StockItem;
 use App\Models\User;
 use App\Models\Voucher;
+use App\Models\VoucherType;
+use App\Support\GatewayMenu;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
@@ -44,6 +48,16 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer(['layouts.app', 'layouts::app'], function ($view) {
             $view->with('company', rescue(fn () => CompanySetting::current(), null, false));
+
+            $user = auth()->user();
+            $view->with('voucherKeys', $user ? VoucherType::query()->where('is_active', true)->where('is_reserved', true)->orderBy('id')->get() : collect());
+            $view->with('goTo', $user ? rescue(fn () => array_merge(
+                GatewayMenu::destinations($user),
+                Ledger::query()->orderBy('name')->get(['id', 'name'])
+                    ->map(fn ($l) => ['label' => $l->name, 'group' => 'Ledger', 'url' => route('reports.ledger', $l)])->all(),
+                StockItem::query()->orderBy('name')->get(['id', 'name'])
+                    ->map(fn ($i) => ['label' => $i->name, 'group' => 'Stock item', 'url' => route('reports.stock-item', $i)])->all(),
+            ), [], false) : []);
         });
     }
 

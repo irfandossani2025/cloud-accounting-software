@@ -197,7 +197,7 @@
             <div class="flex gap-2">
                 <button class="btn-primary" data-shortcut="Ctrl+A" wire:loading.attr="disabled">Accept <span class="kbd">Ctrl+A</span></button>
                 @if ($voucher)
-                    <a href="{{ route('vouchers.print', $voucher) }}" target="_blank" class="btn-secondary">Print</a>
+                    <a href="{{ route('vouchers.print', $voucher) }}" target="_blank" data-print class="btn-secondary">Print</a>
                 @endif
             </div>
             @if ($voucher && auth()->user()->can('cancel-vouchers'))
