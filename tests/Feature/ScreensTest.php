@@ -181,6 +181,37 @@ class ScreensTest extends TestCase
             ->assertSee('Instrument');
     }
 
+    public function test_cancel_buttons_call_cancel_instead_of_submitting_the_form(): void
+    {
+        $sales = VoucherType::query()->where('name', 'Sales')->first();
+        $ledger = Ledger::query()->where('name', 'Sales - Standard Rated')->first();
+        Livewire::test(InvoiceForm::class, ['type' => $sales])
+            ->set('date', '2026-03-01')->set('party_ledger_id', $this->customer->id)
+            ->set('lines.0.ledger_id', (string) $ledger->id)->set('lines.0.rate', '10')
+            ->call('save')->assertHasNoErrors();
+        $invoice = Voucher::query()->sole();
+
+        $journal = app(\App\Services\VoucherService::class)->save([
+            'voucher_type_id' => VoucherType::query()->where('name', 'Journal')->value('id'),
+            'date' => '2026-03-01',
+            'entries' => [
+                ['ledger_id' => Ledger::query()->where('name', 'Cash')->value('id'), 'debit' => '5'],
+                ['ledger_id' => $ledger->id, 'credit' => '5'],
+            ],
+        ]);
+        $item = \App\Models\StockItem::query()->create(['name' => 'Widget', 'unit_id' => \App\Models\Unit::query()->value('id')]);
+        $count = app(\App\Services\InventoryVoucherService::class)->savePhysicalStock([
+            'voucher_type_id' => VoucherType::query()->where('name', 'Physical Stock')->value('id'),
+            'date' => '2026-03-01',
+            'lines' => [['stock_item_id' => $item->id, 'quantity' => '1']],
+        ]);
+
+        // A malformed type attribute makes the browser treat the button as "submit", which saves instead of cancelling.
+        foreach ([route('invoices.edit', $invoice), route('vouchers.edit', $journal), route('inventory-vouchers.edit', $count)] as $url) {
+            $this->get($url)->assertOk()->assertSee('<button type="button" wire:click="cancelVoucher"', false);
+        }
+    }
+
     public function test_report_pages_render(): void
     {
         foreach (['gateway', 'reports.day-book', 'reports.trial-balance', 'reports.profit-loss', 'reports.balance-sheet', 'reports.vat-return', 'ledgers.index', 'groups.index', 'company.edit'] as $route) {

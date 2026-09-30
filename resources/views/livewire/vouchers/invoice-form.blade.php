@@ -200,7 +200,7 @@
                 @endif
             </div>
             @if ($voucher && auth()->user()->can('cancel-vouchers'))
-                <button type=\"button\" wire:click=\"cancelVoucher\" wire:confirm="Cancel this invoice? Its number is kept but it no longer affects the books." class="btn-danger">Cancel invoice</button>
+                <button type="button" wire:click="cancelVoucher" wire:confirm="Cancel this invoice? Its number is kept but it no longer affects the books." class="btn-danger">Cancel invoice</button>
             @endif
         </div>
     </form>
