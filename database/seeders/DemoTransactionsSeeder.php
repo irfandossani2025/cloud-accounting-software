@@ -13,6 +13,7 @@ use App\Services\InvoiceService;
 use App\Services\VoucherService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Six months of sample trading for a small IT supplies business, for demonstrating the system:
@@ -20,7 +21,8 @@ use Illuminate\Support\Carbon;
  * salaries, utilities, a credit note and a post-dated cheque. Everything is posted through the
  * normal services, so reports, VAT, stock and the dashboard behave exactly as with real entries.
  *
- * Adds to the existing books and runs only once:
+ * Adds to the existing books. Safe to run again: entries that already exist are skipped, so an
+ * interrupted run is completed rather than duplicated.
  *   php artisan db:seed --class=DemoTransactionsSeeder --force
  */
 class DemoTransactionsSeeder extends Seeder
@@ -44,12 +46,6 @@ class DemoTransactionsSeeder extends Seeder
 
     public function run(): void
     {
-        if (Ledger::query()->where('name', self::MARKER)->exists()) {
-            $this->command?->warn('Demo transactions are already loaded; nothing added.');
-
-            return;
-        }
-
         $company = CompanySetting::current();
         $this->today = now()->startOfDay();
         // Six months back, but never before the books begin or inside a locked period.
@@ -60,8 +56,16 @@ class DemoTransactionsSeeder extends Seeder
         ])->filter()->max();
         $this->types = VoucherType::query()->where('is_reserved', true)->pluck('id', 'name')->all();
 
-        $this->masters();
-        $this->transactions();
+        $before = Voucher::query()->count();
+        DB::transaction(function () {
+            $this->masters();
+            $this->transactions();
+        });
+        if (Voucher::query()->count() === $before) {
+            $this->command?->warn('Demo transactions are already loaded; nothing added.');
+
+            return;
+        }
 
         $this->command?->info('Demo transactions loaded for '.$this->from->format('d M Y').' to '.$this->today->format('d M Y').': '.Voucher::query()->count().' vouchers in the books.');
     }
@@ -166,10 +170,10 @@ class DemoTransactionsSeeder extends Seeder
 
         // Credit note: Muscat Retail returns one printer.
         $return = collect($sales)->first(fn ($v) => $v->party->name === 'Muscat Retail Co.' && $v->invoiceLines->contains('stock_item_id', $this->items['printer']->id));
-        if ($return && $this->inRange($return->date->copy()->addDays(6))) {
+        if ($return && $this->inRange($return->date->copy()->addDays(6)) && ! Voucher::query()->where('original_voucher_id', $return->id)->exists()) {
             $this->invoices->save([
                 'voucher_type_id' => $this->types['Credit Note'], 'date' => $return->date->copy()->addDays(6)->toDateString(),
-                'party_ledger_id' => $return->party_ledger_id, 'original_voucher_id' => $return->id, 'issuance_reason' => 'Goods returned (damaged in transit)',
+                'party_ledger_id' => $return->party_ledger_id, 'original_voucher_id' => $return->id, 'issuance_reason' => 'CAN',
                 'lines' => [$this->itemLine('printer', 1, 'sales')],
                 'narration' => 'Printer returned, damaged in transit',
             ]);
@@ -183,7 +187,7 @@ class DemoTransactionsSeeder extends Seeder
             $this->expense($m, 18, 'Fuel & Transport', (string) (35 + $m * 4), 'Fuel for delivery van', 'cash');
             $this->expense($m, 22, 'Office Supplies & Stationery', (string) (14.75 + $m * 2), 'Stationery and printer paper', 'cash');
             $this->expense($m, 27, 'Salaries & Wages', $m < 2 ? '1650.000' : '2100.000', 'Salaries for the month (2 staff'.($m < 2 ? ')' : ', plus 1 new technician)'), 'bank');
-            if ($date = $this->date($m, 15)) {
+            if (($date = $this->date($m, 15)) && ! $this->exists('Contra', $date, 'Cash withdrawn for petty expenses')) {
                 $this->vouchers->save([
                     'voucher_type_id' => $this->types['Contra'], 'date' => $date,
                     'entries' => [['ledger_id' => $this->l['Cash']->id, 'debit' => '150.000'], ['ledger_id' => $this->l['Bank Muscat - Current A/c']->id, 'credit' => '150.000']],
@@ -210,6 +214,9 @@ class DemoTransactionsSeeder extends Seeder
 
     private function purchaseOn(string $date, string $supplier, string $billNo, array $lines): void
     {
+        if (Voucher::query()->where('party_ledger_id', $this->l[$supplier]->id)->where('reference', $billNo)->exists()) {
+            return;
+        }
         $this->invoices->save([
             'voucher_type_id' => $this->types['Purchase'], 'date' => $date, 'party_ledger_id' => $this->l[$supplier]->id,
             'reference' => $billNo, 'reference_date' => $date,
@@ -223,6 +230,11 @@ class DemoTransactionsSeeder extends Seeder
         $date = $this->date($month, $day);
         if (! $date) {
             return null;
+        }
+        $existing = Voucher::query()->where('voucher_type_id', $this->types['Sales'])->whereDate('date', $date)
+            ->where('party_ledger_id', $this->l[$customer]->id)->where('is_cancelled', false)->first();
+        if ($existing) {
+            return $existing->load(['party', 'invoiceLines']);
         }
         $rows = array_map(fn ($l) => $this->itemLine($l[0], $l[1] * 2, 'sales'), $lines);
         if ($service) {
@@ -247,7 +259,8 @@ class DemoTransactionsSeeder extends Seeder
 
     private function receipt(Carbon $date, Voucher $invoice, string $amount, array $instrument = []): void
     {
-        if ($date->lt($this->from)) {
+        $narration = ($instrument ? 'Post-dated cheque' : 'Payment received').' against '.$invoice->number;
+        if ($date->lt($this->from) || $this->exists('Receipt', $date->toDateString(), $narration)) {
             return;
         }
         $this->vouchers->save([
@@ -256,7 +269,7 @@ class DemoTransactionsSeeder extends Seeder
                 ['ledger_id' => $this->l['Bank Muscat - Current A/c']->id, 'debit' => $amount] + $instrument,
                 ['ledger_id' => $invoice->party_ledger_id, 'credit' => $amount, 'bills' => [['type' => 'against_ref', 'reference' => $invoice->number, 'amount' => $amount]]],
             ],
-            'narration' => ($instrument ? 'Post-dated cheque' : 'Payment received').' against '.$invoice->number,
+            'narration' => $narration,
         ]);
     }
 
@@ -264,7 +277,7 @@ class DemoTransactionsSeeder extends Seeder
     private function pay(int $month, int $day, string $supplier, array $bills, string $mode, string $instrumentNo): void
     {
         $date = $this->date($month, $day);
-        if (! $date) {
+        if (! $date || $this->exists('Payment', $date, 'Payment to '.$supplier)) {
             return;
         }
         $allocations = [];
@@ -291,7 +304,7 @@ class DemoTransactionsSeeder extends Seeder
 
     private function expense(int $month, int $day, string $ledger, string $amount, string $narration, string $from): void
     {
-        if (! $date = $this->date($month, $day)) {
+        if (! ($date = $this->date($month, $day)) || $this->exists('Payment', $date, $narration)) {
             return;
         }
         $amount = number_format((float) $amount, 3, '.', '');
@@ -303,6 +316,11 @@ class DemoTransactionsSeeder extends Seeder
             ],
             'narration' => $narration,
         ]);
+    }
+
+    private function exists(string $type, string $date, string $narration): bool
+    {
+        return Voucher::query()->where('voucher_type_id', $this->types[$type])->whereDate('date', $date)->where('narration', $narration)->exists();
     }
 
     /** Date in the Nth demo month, or null when it falls outside the demo period (future or before the books). */

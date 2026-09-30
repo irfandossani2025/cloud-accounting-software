@@ -41,6 +41,15 @@ class DemoTransactionsSeederTest extends TestCase
         $this->seed(DemoTransactionsSeeder::class);
         $this->assertSame($count, Voucher::query()->count());
 
+        // An interrupted run (here: everything after the receipts missing) is completed, not duplicated.
+        $firstMissing = Voucher::query()->whereHas('type', fn ($q) => $q->where('name', 'Credit Note'))->value('id');
+        \Illuminate\Support\Facades\DB::table('vouchers')->where('id', '>=', $firstMissing)->delete();
+        $this->assertLessThan($count, Voucher::query()->count());
+        $this->seed(DemoTransactionsSeeder::class);
+        $this->assertSame($count, Voucher::query()->count());
+        $this->assertSame('CAN', Voucher::query()->whereNotNull('original_voucher_id')->sole()->issuance_reason);
+        $this->assertSame(0, app(ReportService::class)->openingDifference());
+
         foreach (['dashboard', 'gateway', 'reports.day-book', 'reports.trial-balance', 'reports.profit-loss', 'reports.balance-sheet', 'reports.vat-return', 'reports.stock-summary'] as $route) {
             $this->get(route($route))->assertOk();
         }
