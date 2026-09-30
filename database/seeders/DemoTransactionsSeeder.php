@@ -63,7 +63,7 @@ class DemoTransactionsSeeder extends Seeder
         $this->masters();
         $this->transactions();
 
-        $this->command?->info('Demo transactions loaded: '.Voucher::query()->count().' vouchers in the books.');
+        $this->command?->info('Demo transactions loaded for '.$this->from->format('d M Y').' to '.$this->today->format('d M Y').': '.Voucher::query()->count().' vouchers in the books.');
     }
 
     private function masters(): void
