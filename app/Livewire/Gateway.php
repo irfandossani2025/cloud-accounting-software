@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\CompanySetting;
 use App\Models\Voucher;
+use App\Services\DashboardService;
 use App\Services\ReportService;
 use App\Support\GatewayMenu;
 use Livewire\Component;
@@ -42,6 +43,7 @@ class Gateway extends Component
             'periodFrom' => $fyStart->max($company->books_begin_from),
             'periodTo' => $fyStart->copy()->addYear()->subDay(),
             'lastEntry' => Voucher::query()->where('is_cancelled', false)->max('date'),
+            'glance' => $this->menu === 'gateway' ? app(DashboardService::class)->summary($today) : null,
             'cashBank' => $this->menu === 'gateway'
                 ? $reports->ledgerBalances($fyStart, $today)->filter(fn ($row) => $row->ledger->isCashOrBank() && $row->closing !== 0)
                 : collect(),

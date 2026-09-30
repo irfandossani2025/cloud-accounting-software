@@ -28,6 +28,7 @@ Route::middleware(['setup', 'auth', EnsureUserIsActive::class])->group(function 
     // Everyone signed in: gateway, reports, printing, own password.
     Route::get('/', Livewire\Gateway::class)->name('gateway');
     Route::get('/menu/{menu}', Livewire\Gateway::class)->name('gateway.menu');
+    Route::get('/dashboard', Livewire\Dashboard::class)->name('dashboard');
     Route::get('/account/password', Livewire\Admin\ChangePassword::class)->name('password.edit');
     Route::get('/vouchers/{voucher}/print', VoucherPrintController::class)->name('vouchers.print');
     Route::get('/codes/{list}', CodeSearchController::class)->whereIn('list', ['hs', 'isic'])->name('codes.search');
