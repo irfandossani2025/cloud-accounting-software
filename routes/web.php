@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/setup', Livewire\Setup::class)->name('setup');
 
+// Customer-facing links (emailed / shared by WhatsApp): signed, expiring URLs, no login.
+Route::middleware('signed')->controller(\App\Http\Controllers\PublicDocumentController::class)->group(function () {
+    Route::get('/i/{voucher}', 'invoice')->name('public.invoice');
+    Route::get('/i/{voucher}/pdf', 'invoicePdf')->name('public.invoice.pdf');
+    Route::get('/s/{ledger}', 'statement')->name('public.statement');
+});
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', Livewire\Auth\Login::class)->name('login');
 });
@@ -31,6 +38,14 @@ Route::middleware(['setup', 'auth', EnsureUserIsActive::class])->group(function 
     Route::get('/dashboard', Livewire\Dashboard::class)->name('dashboard');
     Route::get('/account/password', Livewire\Admin\ChangePassword::class)->name('password.edit');
     Route::get('/vouchers/{voucher}/print', VoucherPrintController::class)->name('vouchers.print');
+    Route::get('/vouchers/{voucher}/pdf', function (\App\Models\Voucher $voucher, \App\Services\Documents\InvoiceDocuments $documents) {
+        abort_if($voucher->is_cancelled || ! $voucher->is_invoice, 404);
+
+        return response($documents->pdf($voucher), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$documents->filename($voucher).'"',
+        ]);
+    })->name('vouchers.pdf');
     Route::get('/codes/{list}', CodeSearchController::class)->whereIn('list', ['hs', 'isic'])->name('codes.search');
     Route::get('/einvoices', Livewire\Reports\EInvoiceRegister::class)->name('einvoices.index');
     Route::get('/einvoices/{einvoice}/xml', function (Einvoice $einvoice) {

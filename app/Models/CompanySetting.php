@@ -19,6 +19,7 @@ class CompanySetting extends Model
             'books_begin_from' => DateOnly::class,
             'locked_until' => DateOnly::class,
             'vat_registered' => 'boolean',
+            'reminders_enabled' => 'boolean',
         ];
     }
 

@@ -205,6 +205,10 @@
         </div>
     </form>
 
+    @if ($voucher && $isSalesSide && $voucher->party && ! $voucher->party->isCashOrBank())
+        <livewire:send-panel :voucher-id="$voucher->id" :key="'send-'.$voucher->id" />
+    @endif
+
     @if ($showEinvoice)
         @php $e = $einvoice; @endphp
         <section class="card mt-4 p-4" id="einvoice">

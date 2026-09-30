@@ -1,4 +1,4 @@
-@props(['title', 'titleAr', 'voucher', 'company'])
+@props(['title', 'titleAr', 'voucher', 'company', 'pdfUrl' => null])
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,7 +30,10 @@
     </style>
 </head>
 <body>
-    <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
+    <div class="toolbar">
+        @if ($pdfUrl)<a href="{{ $pdfUrl }}" style="display:inline-block; margin-right:8px; padding:6px 14px; border-radius:6px; border:1px solid #1f6f68; color:#1f6f68; text-decoration:none;">Download PDF</a>@endif
+        <button onclick="window.print()">Print</button>
+    </div>
     <div class="sheet">
         <div class="row" style="align-items: flex-start; border-bottom: 2px solid #1f6f68; padding-bottom: 10px; margin-bottom: 12px;">
             <div>
