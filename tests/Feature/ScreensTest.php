@@ -14,7 +14,9 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Services\InventoryVoucherService;
 use App\Services\StockService;
+use App\Services\VoucherService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -191,7 +193,7 @@ class ScreensTest extends TestCase
             ->call('save')->assertHasNoErrors();
         $invoice = Voucher::query()->sole();
 
-        $journal = app(\App\Services\VoucherService::class)->save([
+        $journal = app(VoucherService::class)->save([
             'voucher_type_id' => VoucherType::query()->where('name', 'Journal')->value('id'),
             'date' => '2026-03-01',
             'entries' => [
@@ -199,8 +201,8 @@ class ScreensTest extends TestCase
                 ['ledger_id' => $ledger->id, 'credit' => '5'],
             ],
         ]);
-        $item = \App\Models\StockItem::query()->create(['name' => 'Widget', 'unit_id' => \App\Models\Unit::query()->value('id')]);
-        $count = app(\App\Services\InventoryVoucherService::class)->savePhysicalStock([
+        $item = StockItem::query()->create(['name' => 'Widget', 'unit_id' => Unit::query()->value('id')]);
+        $count = app(InventoryVoucherService::class)->savePhysicalStock([
             'voucher_type_id' => VoucherType::query()->where('name', 'Physical Stock')->value('id'),
             'date' => '2026-03-01',
             'lines' => [['stock_item_id' => $item->id, 'quantity' => '1']],

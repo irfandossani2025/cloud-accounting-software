@@ -36,6 +36,8 @@ final class GatewayMenu
 
         $definitions = match ($menu) {
             'gateway' => [
+                ['section' => 'Overview'],
+                ['label' => 'Dashboard', 'key' => 'O', 'url' => route('dashboard')],
                 ['section' => 'Masters'],
                 ['label' => 'Create', 'key' => 'C', 'url' => $sub('create'), 'gate' => 'manage-masters'],
                 ['label' => 'Alter', 'key' => 'A', 'url' => $sub('alter'), 'gate' => 'manage-masters'],

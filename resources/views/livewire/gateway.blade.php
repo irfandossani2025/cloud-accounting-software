@@ -86,5 +86,36 @@
         @endif
     </nav>
 
-    <div class="hidden lg:block"></div>
+    {{-- At a glance (full view: Dashboard, hotkey O) --}}
+    @if ($glance)
+        @php $m = fn ($v) => \App\Support\Money::format($v); @endphp
+        <aside class="space-y-2 self-start text-sm">
+            <a href="{{ route('dashboard') }}" wire:navigate class="tally-panel block !p-3 hover:border-tally-top">
+                <div class="tally-caption">Receivables</div>
+                <div class="font-mono text-base font-semibold">{{ $m($glance['receivables']) }}</div>
+                @if ($glance['receivablesOverdue'] > 0)<div class="text-xs text-red-700">⚠ {{ $m($glance['receivablesOverdue']) }} overdue</div>@endif
+            </a>
+            <a href="{{ route('dashboard') }}" wire:navigate class="tally-panel block !p-3 hover:border-tally-top">
+                <div class="tally-caption">Payables</div>
+                <div class="font-mono text-base font-semibold">{{ $m($glance['payables']) }}</div>
+                @if ($glance['payablesDueSoon']->isNotEmpty())<div class="text-xs text-amber-700">{{ $glance['payablesDueSoon']->count() }} bill(s) due within 14 days</div>@endif
+            </a>
+            <a href="{{ route('dashboard') }}" wire:navigate class="tally-panel block !p-3 hover:border-tally-top">
+                <div class="tally-caption">VAT {{ $glance['vatDue'] >= 0 ? 'payable' : 'refundable' }} this quarter</div>
+                <div class="font-mono text-base font-semibold">{{ $m(abs($glance['vatDue'])) }}</div>
+            </a>
+            <a href="{{ route('dashboard') }}" wire:navigate class="tally-panel block !p-3 hover:border-tally-top">
+                <div class="tally-caption">Sales this month</div>
+                <div class="font-mono text-base font-semibold">{{ $m($glance['salesThisMonth']) }}</div>
+            </a>
+            @if ($glance['lowStock']->isNotEmpty() || $glance['postDated']->isNotEmpty())
+                <a href="{{ route('dashboard') }}" wire:navigate class="tally-panel block !p-3 text-xs text-amber-800 hover:border-tally-top">
+                    @if ($glance['lowStock']->isNotEmpty())<div>⚠ {{ $glance['lowStock']->count() }} item(s) at reorder level</div>@endif
+                    @if ($glance['postDated']->isNotEmpty())<div>⚠ {{ $glance['postDated']->count() }} post-dated cheque(s) this week</div>@endif
+                </a>
+            @endif
+        </aside>
+    @else
+        <div class="hidden lg:block"></div>
+    @endif
 </div>
