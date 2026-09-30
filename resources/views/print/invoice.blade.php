@@ -1,15 +1,9 @@
 @php
     use App\Support\Money;
-    $net = $voucher->invoiceLines->sum(fn ($l) => Money::toBaisa($l->amount));
-    $vat = $voucher->invoiceLines->reject(fn ($l) => $l->vat_category === \App\Enums\VatCategory::ReverseCharge)->sum(fn ($l) => Money::toBaisa($l->vat_amount));
+    // $net, $vat, $books and $code come from InvoiceDocuments::data(), shared with the PDF.
     $party = $voucher->party;
-    $code = $voucher->currency?->code ?? 'OMR';
-    $books = $voucher->currency_id ? app(\App\Services\InvoiceService::class)->inOmr($voucher->invoiceLines->map(fn ($l) => [
-        'ledger_id' => $l->ledger_id, 'amount' => $l->amount, 'vat_amount' => $l->vat_amount, 'vat_rate' => $l->vat_rate,
-        'vat_category' => $l->vat_category, 'cost_centre_id' => null,
-    ])->all(), $voucher->fx_rate) : null;
 @endphp
-<x-print-layout :title="$title" :title-ar="$titleAr" :voucher="$voucher" :company="$company">
+<x-print-layout :title="$title" :title-ar="$titleAr" :voucher="$voucher" :company="$company" :pdf-url="$pdfUrl ?? null">
     <div class="row" style="margin-bottom: 12px;">
         <div class="box" style="flex: 1">
             <div class="row"><span class="muted">{{ in_array($voucher->type->base_type->value, ['sales', 'credit_note']) ? 'Bill to' : 'Supplier' }}</span><span class="ar muted">{{ in_array($voucher->type->base_type->value, ['sales', 'credit_note']) ? 'العميل' : 'المورد' }}</span></div>

@@ -47,6 +47,12 @@ class CompanyForm extends Component
 
     public bool $einvoicing_enabled = false;
 
+    public bool $reminders_enabled = false;
+
+    public string $reminder_days = '3,14,30';
+
+    public string $invoice_email_note = '';
+
     public function mount(): void
     {
         abort_unless(auth()->user()->isAdmin(), 403);
@@ -61,6 +67,9 @@ class CompanyForm extends Component
         $this->books_begin_from = $company->books_begin_from->toDateString();
         $this->vat_registered = $company->vat_registered;
         $this->einvoicing_enabled = $company->einvoicing_enabled;
+        $this->reminders_enabled = $company->reminders_enabled;
+        $this->reminder_days = (string) $company->reminder_days;
+        $this->invoice_email_note = (string) $company->invoice_email_note;
     }
 
     public function save()
@@ -87,7 +96,14 @@ class CompanyForm extends Component
             'postal_code' => 'nullable|string|max:20',
             'country_subdivision' => ['required', Rule::in(array_keys(PintOm::SUBDIVISIONS))],
             'einvoicing_enabled' => 'boolean',
-        ], ['vatin.regex' => 'The VATIN must be "OM" followed by 10 digits, e.g. OM1100012345.']);
+            'reminders_enabled' => 'boolean',
+            'reminder_days' => ['required', 'regex:/^\s*\d{1,3}(\s*,\s*\d{1,3})*\s*$/'],
+            'invoice_email_note' => 'nullable|string|max:2000',
+        ], [
+            'vatin.regex' => 'The VATIN must be "OM" followed by 10 digits, e.g. OM1100012345.',
+            'reminder_days.regex' => 'Enter days overdue separated by commas, e.g. 3,14,30.',
+        ]);
+        $data['reminder_days'] = collect(explode(',', $data['reminder_days']))->map(fn ($d) => (int) trim($d))->filter()->unique()->sort()->implode(',');
 
         CompanySetting::current()->update(array_map(fn ($v) => $v === '' ? null : $v, $data));
         session()->flash('status', 'Company details saved.');

@@ -31,4 +31,7 @@
             </tfoot>
         </table>
     </div>
+    @if (\App\Models\AccountGroup::reserved('Sundry Debtors')->descendantAndSelfIds()->contains($ledger->account_group_id))
+        <livewire:send-panel :ledger-id="$ledger->id" :key="'send-ledger-'.$ledger->id" />
+    @endif
 </div>
