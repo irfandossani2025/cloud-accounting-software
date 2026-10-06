@@ -7,7 +7,7 @@ use App\Models\CompanySetting;
 use App\Models\Voucher;
 use App\Services\InvoiceService;
 use App\Support\Money;
-use Mpdf\Mpdf;
+use TCPDF;
 
 /**
  * Printable, PDF and shareable forms of a voucher. The browser print view and the PDF share the
@@ -44,21 +44,24 @@ class InvoiceDocuments
         return compact('voucher', 'company', 'title', 'titleAr', 'net', 'vat', 'books') + ['code' => $voucher->currency?->code ?? 'OMR'];
     }
 
-    /** PDF bytes of an invoice or credit note (Arabic shaped by mPDF). */
+    /** PDF bytes of an invoice or credit note (Arabic shaped by TCPDF, LGPL). */
     public function pdf(Voucher $voucher): string
     {
-        $mpdf = new Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'margin_left' => 14, 'margin_right' => 14, 'margin_top' => 14, 'margin_bottom' => 14,
-            'tempDir' => storage_path('app/mpdf'),
-            'autoScriptToLang' => true,
-            'autoLangToFont' => true,
-        ]);
-        $mpdf->SetTitle($this->filename($voucher));
-        $mpdf->WriteHTML(view('pdf.invoice', $this->data($voucher))->render());
+        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8');
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(14, 14, 14);
+        $pdf->SetAutoPageBreak(true, 14);
+        $pdf->SetTitle($this->filename($voucher));
+        $pdf->SetCreator(config('app.name'));
+        // DejaVu Sans covers Latin and Arabic, so mixed English/Arabic lines need no font switching.
+        $pdf->SetFont('dejavusans', '', 8.5);
+        $pdf->AddPage();
+        // TCPDF prints the template's line breaks and indentation as spaces at the start of lines.
+        $html = preg_replace('/\n\s*/', '', view('pdf.invoice', $this->data($voucher))->render());
+        $pdf->writeHTML($html);
 
-        return $mpdf->Output('', 'S');
+        return $pdf->Output($this->filename($voucher), 'S');
     }
 
     public function filename(Voucher $voucher, string $extension = 'pdf'): string
